@@ -1,0 +1,1 @@
+"""EmployeeMint backend application."""

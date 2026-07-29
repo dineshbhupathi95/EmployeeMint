@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="blue">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmployeeMint</title>
+    <script>
+      (function () {
+        var KEY = "employeemint-theme-id";
+        var valid = { blue: 1, emerald: 1, violet: 1, red: 1, rose: 1 };
+        var theme = localStorage.getItem(KEY);
+        if (!theme || !valid[theme]) {
+          try {
+            var raw = localStorage.getItem("employeemint-theme");
+            if (raw) {
+              var parsed = JSON.parse(raw);
+              theme = parsed && parsed.state && parsed.state.theme;
+            }
+          } catch (e) {}
+        }
+        if (theme === "rose") theme = "red";
+        if (theme && valid[theme]) {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html[data-theme="blue"],
+html:not([data-theme]) {
+  --brand-50: #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-900: #1e3a8a;
+}
+
+html[data-theme="emerald"] {
+  --brand-50: #ecfdf5;
+  --brand-100: #d1fae5;
+  --brand-200: #a7f3d0;
+  --brand-500: #10b981;
+  --brand-600: #059669;
+  --brand-700: #047857;
+  --brand-900: #064e3b;
+}
+
+html[data-theme="violet"] {
+  --brand-50: #f5f3ff;
+  --brand-100: #ede9fe;
+  --brand-200: #ddd6fe;
+  --brand-500: #8b5cf6;
+  --brand-600: #7c3aed;
+  --brand-700: #6d28d9;
+  --brand-900: #4c1d95;
+}
+
+html[data-theme="red"],
+html[data-theme="rose"] {
+  --brand-50: #fff1f2;
+  --brand-100: #ffe4e6;
+  --brand-200: #fecdd3;
+  --brand-500: #f43f5e;
+  --brand-600: #e11d48;
+  --brand-700: #be123c;
+  --brand-900: #881337;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .em-table {
+    @apply w-full text-left text-sm;
+  }
+
+  .em-table thead tr {
+    @apply border-b border-slate-200 text-slate-500;
+  }
+
+  .em-table th {
+    @apply pb-2 pr-3 font-medium;
+  }
+
+  .em-table th:last-child,
+  .em-table td:last-child:not([colspan]) {
+    @apply pr-0 text-right;
+  }
+
+  .em-table tbody tr {
+    @apply border-b border-slate-100;
+  }
+
+  .em-table td {
+    @apply py-2.5 pr-3 align-middle text-slate-700;
+  }
+
+  .em-form-row {
+    @apply flex flex-wrap items-end gap-3;
+  }
+
+  .em-page {
+    @apply mx-auto w-full max-w-7xl;
+  }
+}
+
+/* Announcement marquee — scrolls left → right */
+@keyframes announcement-scroll-ltr {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.announcement-ticker-track {
+  animation: announcement-scroll-ltr 40s linear infinite;
+}
+
+.announcement-ticker:hover .announcement-ticker-track,
+.announcement-ticker-track.announcement-ticker-paused {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announcement-ticker-track {
+    animation: none;
+    transform: none;
+  }
+}

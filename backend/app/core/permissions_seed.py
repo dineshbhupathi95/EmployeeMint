@@ -1,0 +1,138 @@
+"""Default permissions seeded at platform level."""
+
+DEFAULT_PERMISSIONS: list[dict[str, str]] = [
+    # Dashboard
+    {"code": "dashboard.view", "name": "View Dashboard", "module": "dashboard"},
+    # Employee
+    {"code": "employee.view.own", "name": "View Own Profile", "module": "employee"},
+    {"code": "employee.view.team", "name": "View Team Profiles", "module": "employee"},
+    {"code": "employee.view.all", "name": "View All Employees", "module": "employee"},
+    {"code": "employee.edit.own", "name": "Edit Own Profile", "module": "employee"},
+    {"code": "employee.edit.all", "name": "Edit All Employees", "module": "employee"},
+    {"code": "employee.create", "name": "Create Employees", "module": "employee"},
+    # Attendance
+    {"code": "attendance.mark.own", "name": "Mark Own Attendance", "module": "attendance"},
+    {"code": "attendance.view.team", "name": "View Team Attendance", "module": "attendance"},
+    {"code": "attendance.view.all", "name": "View All Attendance", "module": "attendance"},
+    # Leave
+    {"code": "leave.apply", "name": "Apply for Leave", "module": "leave"},
+    {"code": "leave.view.own", "name": "View Own Leave", "module": "leave"},
+    {"code": "leave.approve", "name": "Approve Leave", "module": "leave"},
+    {"code": "leave.manage", "name": "Manage Leave Policies", "module": "leave"},
+    # Finance
+    {"code": "payroll.view.own", "name": "View Own Payslips", "module": "finance"},
+    {"code": "payroll.view.all", "name": "View All Payroll", "module": "finance"},
+    {"code": "payroll.process", "name": "Process Payroll", "module": "finance"},
+    {"code": "reimbursement.submit", "name": "Submit Reimbursements", "module": "finance"},
+    {"code": "reimbursement.approve", "name": "Approve Reimbursements", "module": "finance"},
+    # Approvals
+    {"code": "approvals.view", "name": "View Approvals Inbox", "module": "approvals"},
+    {"code": "approvals.action", "name": "Approve/Reject Requests", "module": "approvals"},
+    # Organization
+    {"code": "org.view", "name": "View Organization", "module": "organization"},
+    {"code": "org.manage", "name": "Manage Organization", "module": "organization"},
+    # Performance
+    {"code": "performance.view.own", "name": "View Own Performance", "module": "performance"},
+    {"code": "performance.manage", "name": "Manage Performance Cycles", "module": "performance"},
+    # Timesheets
+    {"code": "timesheet.submit", "name": "Submit Timesheets", "module": "timesheets"},
+    {"code": "timesheet.approve", "name": "Approve Timesheets", "module": "timesheets"},
+    # Onboarding / Offboarding
+    {"code": "onboarding.manage", "name": "Manage Onboarding", "module": "onboarding"},
+    {"code": "offboarding.manage", "name": "Manage Offboarding", "module": "offboarding"},
+    {"code": "offer_letter.generate", "name": "Generate Offer Letters", "module": "offer_letters"},
+    # Settings / Admin
+    {"code": "org.manage_roles", "name": "Manage Roles & Permissions", "module": "settings"},
+    {"code": "settings.manage", "name": "Manage Tenant Settings", "module": "settings"},
+    {"code": "reports.view", "name": "View Reports", "module": "reports"},
+    {"code": "workflows.manage", "name": "Manage Approval Workflows", "module": "workflows"},
+]
+
+DEFAULT_ROLES: dict[str, list[str]] = {
+    "Org Admin": ["*"],
+    "HR Admin": [
+        "dashboard.view",
+        "employee.*",
+        "attendance.view.all",
+        "leave.manage",
+        "leave.approve",
+        "org.view",
+        "org.manage",
+        "onboarding.manage",
+        "offboarding.manage",
+        "offer_letter.generate",
+        "reports.view",
+        "workflows.manage",
+        "settings.manage",
+        "org.manage_roles",
+        "performance.manage",
+        "approvals.view",
+        "approvals.action",
+    ],
+    "HR Executive": [
+        "dashboard.view",
+        "employee.view.all",
+        "employee.edit.all",
+        "employee.create",
+        "attendance.view.all",
+        "leave.manage",
+        "org.view",
+        "onboarding.manage",
+        "offer_letter.generate",
+        "approvals.view",
+        "approvals.action",
+    ],
+    "Reporting Manager": [
+        "dashboard.view",
+        "employee.view.team",
+        "attendance.view.team",
+        "leave.approve",
+        "approvals.view",
+        "approvals.action",
+        "performance.manage",
+        "org.view",
+        "timesheet.approve",
+    ],
+    "Finance Admin": [
+        "dashboard.view",
+        "payroll.view.all",
+        "payroll.process",
+        "reimbursement.approve",
+        "approvals.view",
+        "approvals.action",
+        "reports.view",
+        "employee.view.all",
+    ],
+    "Employee": [
+        "dashboard.view",
+        "employee.view.own",
+        "employee.edit.own",
+        "attendance.mark.own",
+        "leave.apply",
+        "leave.view.own",
+        "payroll.view.own",
+        "reimbursement.submit",
+        "performance.view.own",
+        "timesheet.submit",
+        "org.view",
+    ],
+}
+
+DEFAULT_ENABLED_MODULES = {
+    "dashboard": True,
+    "employee": True,
+    "attendance": True,
+    "leave": True,
+    "finance": True,
+    "approvals": True,
+    "organization": True,
+    "myteam": True,
+    "performance": True,
+    "timesheets": True,
+    "onboarding": True,
+    "offboarding": True,
+    "offer_letters": True,
+    "workflows": True,
+    "reports": True,
+    "settings": True,
+}
