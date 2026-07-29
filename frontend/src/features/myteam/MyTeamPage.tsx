@@ -19,6 +19,8 @@ interface TeamMember {
   checked_out_today: boolean;
   check_in_time: string | null;
   attendance_mode: string | null;
+  relation?: "reportee" | "peer";
+  manager_name?: string | null;
 }
 
 function buildLevels(members: TeamMember[], managerId: string | undefined) {
@@ -66,14 +68,19 @@ export function MyTeamPage() {
     refetchInterval: 60_000,
   });
 
+  const isPeers = (team?.length ?? 0) > 0 && team?.every((m) => m.relation === "peer");
+
   const levels = useMemo(
-    () => buildLevels(team ?? [], managerId),
-    [team, managerId],
+    () => (isPeers ? new Map<string, number>() : buildLevels(team ?? [], managerId)),
+    [team, managerId, isPeers],
   );
 
-  const directCount = team?.filter((e) => e.reports_to_employee_id === managerId).length ?? 0;
-  const indirectCount = (team?.length ?? 0) - directCount;
+  const directCount = isPeers
+    ? 0
+    : team?.filter((e) => e.reports_to_employee_id === managerId).length ?? 0;
+  const indirectCount = isPeers ? 0 : (team?.length ?? 0) - directCount;
   const checkedInCount = team?.filter((e) => e.checked_in_today).length ?? 0;
+  const sharedManager = team?.[0]?.manager_name ?? null;
 
   const managerName = (id: string | null) => {
     if (!id) return null;
@@ -81,31 +88,36 @@ export function MyTeamPage() {
     return mgr ? `${mgr.first_name} ${mgr.last_name}` : null;
   };
 
+  const description = isPeers
+    ? `${team?.length ?? 0} teammates under ${sharedManager ?? "your manager"} · ${checkedInCount} checked in today`
+    : `${team?.length ?? 0} total · ${directCount} direct · ${indirectCount} indirect · ${checkedInCount} checked in today`;
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="My Team"
-        description={`${team?.length ?? 0} total · ${directCount} direct · ${indirectCount} indirect · ${checkedInCount} checked in today`}
-      />
+      <PageHeader title="My Team" description={description} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {team?.map((e) => {
           const level = levels.get(e.id) ?? 1;
-          const reportsTo = e.reports_to_employee_id === managerId
-            ? "Direct report"
-            : managerName(e.reports_to_employee_id);
+          const reportsTo = isPeers
+            ? sharedManager
+              ? `Same manager: ${sharedManager}`
+              : "Teammate"
+            : e.reports_to_employee_id === managerId
+              ? "Direct report"
+              : managerName(e.reports_to_employee_id);
           const checkInTime = formatCheckInTime(e.check_in_time);
           const mode = formatMode(e.attendance_mode);
 
           return (
-            <Card key={e.id} className={level > 1 ? "border-l-4 border-l-brand-200" : ""}>
+            <Card key={e.id} className={!isPeers && level > 1 ? "border-l-4 border-l-brand-200" : ""}>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-medium text-slate-900">{e.first_name} {e.last_name}</p>
                   <p className="text-sm text-slate-500">{e.employee_code}</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                  L{level}
+                  {isPeers ? "Peer" : `L${level}`}
                 </span>
               </div>
 
@@ -148,7 +160,13 @@ export function MyTeamPage() {
               <p className="mt-2 text-sm text-slate-500">{e.work_email}</p>
               {reportsTo && (
                 <p className="mt-2 text-xs text-slate-400">
-                  Reports to: <span className="text-slate-600">{reportsTo}</span>
+                  {isPeers ? (
+                    <span className="text-slate-600">{reportsTo}</span>
+                  ) : (
+                    <>
+                      Reports to: <span className="text-slate-600">{reportsTo}</span>
+                    </>
+                  )}
                 </p>
               )}
               <p className="mt-2 text-xs capitalize text-green-600">{e.employment_status}</p>
@@ -157,7 +175,9 @@ export function MyTeamPage() {
         })}
         {!team?.length && (
           <Card className="sm:col-span-2 lg:col-span-3">
-            <p className="text-sm text-slate-500">No team members in your reporting hierarchy yet.</p>
+            <p className="text-sm text-slate-500">
+              No team members yet. You&apos;ll see your reportees here, or teammates who report to the same manager.
+            </p>
           </Card>
         )}
       </div>

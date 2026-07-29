@@ -10,6 +10,29 @@ import { PageHeader } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 
+interface TaxComputation {
+  regime: string;
+  financial_year: string;
+  annual_gross: number;
+  standard_deduction: number;
+  chapter_via_deductions: number;
+  taxable_income: number;
+  tax_before_rebate: number;
+  rebate_87a: number;
+  tax_before_cess: number;
+  cess: number;
+  annual_tax: number;
+  monthly_tds: number;
+  slab_breakdown: {
+    from: number;
+    to: number | null;
+    rate_percent: number;
+    taxable_in_slab: number;
+    tax: number;
+  }[];
+  notes: string;
+}
+
 interface Compensation {
   id: string;
   employee_id: string;
@@ -22,6 +45,7 @@ interface Compensation {
   earnings: Record<string, number>;
   deductions: Record<string, number>;
   source: string;
+  tax_computation?: TaxComputation | null;
 }
 
 interface MyPayData {
@@ -29,6 +53,7 @@ interface MyPayData {
   compensation: Compensation | null;
   payslip_count: number;
   message: string | null;
+  tax_computation?: TaxComputation | null;
 }
 
 interface Payslip {
@@ -55,21 +80,123 @@ function formatCurrency(n: number | null | undefined) {
   return `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+function TaxComputationCard({ tax }: { tax: TaxComputation }) {
+  return (
+    <Card>
+      <CardHeader
+        title="Automatic tax computation"
+        description={`${tax.regime === "old" ? "Old" : "New"} regime · FY ${tax.financial_year} · TDS estimate from CTC`}
+      />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <p className="text-xs text-slate-500">Taxable income</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(tax.taxable_income)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Annual tax (incl. cess)</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-red-700">{formatCurrency(tax.annual_tax)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Monthly TDS</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-red-700">{formatCurrency(tax.monthly_tds)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">87A rebate</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-green-700">{formatCurrency(tax.rebate_87a)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="em-table">
+          <thead>
+            <tr>
+              <th>Slab</th>
+              <th>Rate</th>
+              <th>Taxable</th>
+              <th>Tax</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tax.slab_breakdown.map((s, i) => (
+              <tr key={i}>
+                <td className="whitespace-nowrap">
+                  {formatCurrency(s.from)} – {s.to == null ? "above" : formatCurrency(s.to)}
+                </td>
+                <td>{s.rate_percent}%</td>
+                <td className="tabular-nums">{formatCurrency(s.taxable_in_slab)}</td>
+                <td className="tabular-nums">{formatCurrency(s.tax)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td>Health & education cess</td>
+              <td>4%</td>
+              <td className="tabular-nums">{formatCurrency(tax.tax_before_cess)}</td>
+              <td className="tabular-nums">{formatCurrency(tax.cess)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">{tax.notes}</p>
+    </Card>
+  );
+}
+
 export function FinancePage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"my-pay" | "payslips" | "expenses" | "admin">("my-pay");
+  const [tab, setTab] = useState<"my-pay" | "tax" | "payslips" | "expenses" | "admin">("my-pay");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ category_id: "", amount: "", expense_date: "", description: "" });
   const [error, setError] = useState("");
   const [adminEmployeeId, setAdminEmployeeId] = useState("");
-  const [adminForm, setAdminForm] = useState({ ctc: "", designation: "", joining_date: "" });
+  const [adminForm, setAdminForm] = useState({
+    ctc: "",
+    designation: "",
+    joining_date: "",
+    tax_regime: "new" as "new" | "old",
+  });
   const [adminMessage, setAdminMessage] = useState("");
+  const [calcCtc, setCalcCtc] = useState("15 LPA");
+  const [calcRegime, setCalcRegime] = useState<"new" | "old">("new");
 
   const { data: myPay } = useQuery({
     queryKey: ["my-pay"],
     queryFn: () => apiRequest<MyPayData>("/api/v1/finance/my-pay", { token: accessToken }),
-    enabled: tab === "my-pay",
+    enabled: tab === "my-pay" || tab === "tax",
+  });
+
+  const { data: taxPreview, isFetching: taxPreviewLoading } = useQuery({
+    queryKey: ["tax-preview", calcCtc, calcRegime],
+    queryFn: () =>
+      apiRequest<{
+        ctc_annual: number | null;
+        gross_monthly: number | null;
+        net_monthly: number | null;
+        deductions: Record<string, number>;
+        tax_computation: TaxComputation | null;
+      }>("/api/v1/finance/tax-preview", {
+        method: "POST",
+        token: accessToken,
+        body: JSON.stringify({ ctc: calcCtc, tax_regime: calcRegime }),
+      }),
+    enabled: tab === "tax" && calcCtc.trim().length > 0,
+  });
+
+  const { data: adminTaxPreview } = useQuery({
+    queryKey: ["tax-preview-admin", adminForm.ctc, adminForm.tax_regime],
+    queryFn: () =>
+      apiRequest<{
+        ctc_annual: number | null;
+        gross_monthly: number | null;
+        net_monthly: number | null;
+        deductions: Record<string, number>;
+        tax_computation: TaxComputation | null;
+      }>("/api/v1/finance/tax-preview", {
+        method: "POST",
+        token: accessToken,
+        body: JSON.stringify({ ctc: adminForm.ctc, tax_regime: adminForm.tax_regime }),
+      }),
+    enabled: tab === "admin" && adminForm.ctc.trim().length > 0,
   });
 
   const { data: payslips } = useQuery({
@@ -120,10 +247,11 @@ export function FinancePage() {
           ctc: adminForm.ctc,
           designation: adminForm.designation || null,
           joining_date: adminForm.joining_date || null,
+          tax_regime: adminForm.tax_regime,
         }),
       }),
     onSuccess: () => {
-      setAdminMessage("Pay details saved for employee.");
+      setAdminMessage("Pay details saved. Tax TDS computed automatically from CTC.");
       queryClient.invalidateQueries({ queryKey: ["my-pay"] });
     },
     onError: (err: Error) => setAdminMessage(err.message),
@@ -131,14 +259,20 @@ export function FinancePage() {
 
   const monthName = (m: number) => new Date(2000, m - 1).toLocaleString("default", { month: "long" });
   const comp = myPay?.compensation;
+  const tax = myPay?.tax_computation ?? comp?.tax_computation ?? null;
+  const deductionEntries = Object.entries(comp?.deductions ?? {}).filter(([k]) => k !== "tax_regime");
 
   return (
     <div className="space-y-6">
-      <PageHeader title="My Pay" description="Compensation, payslips, and expense claims" />
+      <PageHeader
+        title="My Pay"
+        description="Compensation, automatic tax (TDS), payslips, and expense claims"
+      />
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
         {([
           ["my-pay", "My Pay"],
+          ["tax", "Tax"],
           ["payslips", "Payslips"],
           ["expenses", "Expenses"],
         ] as const).map(([key, label]) => (
@@ -168,6 +302,79 @@ export function FinancePage() {
         </Can>
       </div>
 
+      {tab === "tax" && (
+        <div className="space-y-6">
+          <Card className="border-brand-100 bg-brand-50/40">
+            <CardHeader
+              title="Income tax from CTC"
+              description="Automatic India tax estimate (slabs + cess + 87A). Enter CTC to calculate, or use your configured pay below."
+            />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Input
+                label="CTC"
+                placeholder="e.g. 15 LPA or 1500000"
+                value={calcCtc}
+                onChange={(e) => setCalcCtc(e.target.value)}
+              />
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Tax regime</label>
+                <select
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  value={calcRegime}
+                  onChange={(e) => setCalcRegime(e.target.value as "new" | "old")}
+                >
+                  <option value="new">New regime</option>
+                  <option value="old">Old regime</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <p className="text-sm text-slate-500">
+                  {taxPreviewLoading ? "Calculating…" : taxPreview?.ctc_annual != null
+                    ? `Parsed annual: ${formatCurrency(taxPreview.ctc_annual)}`
+                    : "Enter a valid CTC"}
+                </p>
+              </div>
+            </div>
+            {taxPreview && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs text-slate-500">Monthly TDS</p>
+                  <p className="text-lg font-semibold tabular-nums text-red-700">
+                    {formatCurrency(taxPreview.tax_computation?.monthly_tds)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs text-slate-500">Annual tax</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {formatCurrency(taxPreview.tax_computation?.annual_tax)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs text-slate-500">Est. monthly net</p>
+                  <p className="text-lg font-semibold tabular-nums text-green-700">
+                    {formatCurrency(taxPreview.net_monthly)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {taxPreview?.tax_computation && <TaxComputationCard tax={taxPreview.tax_computation} />}
+
+          {tax && myPay?.configured && (
+            <Card>
+              <CardHeader
+                title="Tax on your configured pay"
+                description={`Based on your CTC ${comp?.ctc ?? ""} — same values used in My Pay deductions`}
+              />
+              <Button type="button" variant="secondary" onClick={() => setTab("my-pay")}>
+                Open My Pay breakdown
+              </Button>
+            </Card>
+          )}
+        </div>
+      )}
+
       {tab === "my-pay" && (
         <>
           {!myPay?.configured ? (
@@ -182,6 +389,13 @@ export function FinancePage() {
                   <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
                     <li>HR admin can configure CTC manually under <strong>Configure Pay (Admin)</strong></li>
                     <li>Or it auto-syncs when an offer letter is <strong>released</strong> to your work/login email</li>
+                    <li>
+                      You can still try tax calculation now in the{" "}
+                      <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => setTab("tax")}>
+                        Tax
+                      </button>{" "}
+                      tab
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -224,23 +438,25 @@ export function FinancePage() {
                     {Object.entries(comp?.earnings ?? {}).map(([key, val]) => (
                       <div key={key} className="flex justify-between border-b border-slate-50 py-2">
                         <dt className="capitalize text-slate-600">{key.replace(/_/g, " ")}</dt>
-                        <dd className="font-medium">{formatCurrency(val)}</dd>
+                        <dd className="font-medium tabular-nums">{formatCurrency(val)}</dd>
                       </div>
                     ))}
                   </dl>
                 </Card>
                 <Card>
-                  <CardHeader title="Monthly Deductions (est.)" />
+                  <CardHeader title="Monthly Deductions (auto)" description="PF, professional tax, and income-tax TDS from CTC" />
                   <dl className="space-y-2 text-sm">
-                    {Object.entries(comp?.deductions ?? {}).map(([key, val]) => (
+                    {deductionEntries.map(([key, val]) => (
                       <div key={key} className="flex justify-between border-b border-slate-50 py-2">
                         <dt className="capitalize text-slate-600">{key.replace(/_/g, " ")}</dt>
-                        <dd className="font-medium text-red-600">{formatCurrency(val)}</dd>
+                        <dd className="font-medium tabular-nums text-red-600">{formatCurrency(val)}</dd>
                       </div>
                     ))}
                   </dl>
                 </Card>
               </div>
+
+              {tax && <TaxComputationCard tax={tax} />}
             </>
           )}
 
@@ -361,6 +577,19 @@ export function FinancePage() {
               value={adminForm.ctc}
               onChange={(e) => setAdminForm((f) => ({ ...f, ctc: e.target.value }))}
             />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Tax regime</label>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={adminForm.tax_regime}
+                onChange={(e) =>
+                  setAdminForm((f) => ({ ...f, tax_regime: e.target.value as "new" | "old" }))
+                }
+              >
+                <option value="new">New regime (default)</option>
+                <option value="old">Old regime</option>
+              </select>
+            </div>
             <Input
               label="Designation"
               value={adminForm.designation}
@@ -372,6 +601,31 @@ export function FinancePage() {
               value={adminForm.joining_date}
               onChange={(e) => setAdminForm((f) => ({ ...f, joining_date: e.target.value }))}
             />
+            {adminTaxPreview?.tax_computation && (
+              <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-800">Live tax preview from CTC</p>
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">Monthly TDS</p>
+                    <p className="font-semibold tabular-nums text-red-700">
+                      {formatCurrency(adminTaxPreview.tax_computation.monthly_tds)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Annual tax</p>
+                    <p className="font-semibold tabular-nums">
+                      {formatCurrency(adminTaxPreview.tax_computation.annual_tax)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Est. monthly net</p>
+                    <p className="font-semibold tabular-nums text-green-700">
+                      {formatCurrency(adminTaxPreview.net_monthly)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex items-end sm:col-span-2">
               <Button type="submit" disabled={saveCompMutation.isPending || !adminEmployeeId}>
                 <IndianRupee className="mr-2 h-4 w-4" />
@@ -380,7 +634,7 @@ export function FinancePage() {
             </div>
           </form>
           <p className="mt-4 text-xs text-slate-500">
-            Tip: When creating an offer letter, use the candidate&apos;s work email. Releasing the offer will auto-fill their My Pay.
+            Tax is computed automatically from CTC (slabs + cess + 87A rebate). Saving updates My Pay deductions and net.
           </p>
         </Card>
       )}

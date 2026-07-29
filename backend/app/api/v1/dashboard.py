@@ -46,24 +46,37 @@ async def my_team(
 ):
     if not current_user.employee_id:
         return []
-    reportees = await employee_service.get_all_reportees(
+    team, scope = await employee_service.get_my_team(
         db, current_user.tenant_id, current_user.employee_id
     )
-    if not reportees:
+    if not team:
         return []
+
+    manager_name: str | None = None
+    if scope == "peers":
+        me = await employee_service.get_by_id(
+            db, current_user.tenant_id, current_user.employee_id
+        )
+        if me and me.reports_to_employee_id:
+            mgr = await employee_service.get_by_id(
+                db, current_user.tenant_id, me.reports_to_employee_id
+            )
+            if mgr:
+                manager_name = f"{mgr.first_name} {mgr.last_name}"
 
     today = date.today()
     att_result = await db.execute(
         select(AttendanceRecord).where(
             AttendanceRecord.tenant_id == current_user.tenant_id,
-            AttendanceRecord.employee_id.in_([e.id for e in reportees]),
+            AttendanceRecord.employee_id.in_([e.id for e in team]),
             AttendanceRecord.date == today,
         )
     )
     attendance_by_employee = {r.employee_id: r for r in att_result.scalars().all()}
 
+    relation = "peer" if scope == "peers" else "reportee"
     members: list[TeamMemberResponse] = []
-    for employee in reportees:
+    for employee in team:
         base = await employee_service.to_response(db, employee)
         record = attendance_by_employee.get(employee.id)
         members.append(
@@ -73,6 +86,8 @@ async def my_team(
                 checked_out_today=record.check_out is not None if record else False,
                 check_in_time=record.check_in if record else None,
                 attendance_mode=record.mode if record else None,
+                relation=relation,
+                manager_name=manager_name,
             )
         )
     return members

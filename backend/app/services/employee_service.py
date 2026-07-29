@@ -143,6 +143,33 @@ class EmployeeService:
         reportees.sort(key=lambda e: (e.first_name, e.last_name))
         return reportees
 
+    async def get_peers_under_manager(
+        self, db: AsyncSession, tenant_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> list[Employee]:
+        """Return coworkers who report to the same manager (excludes self)."""
+        me = await self.get_by_id(db, tenant_id, employee_id)
+        if not me or not me.reports_to_employee_id:
+            return []
+        result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tenant_id,
+                Employee.is_deleted.is_(False),
+                Employee.reports_to_employee_id == me.reports_to_employee_id,
+                Employee.id != employee_id,
+            ).order_by(Employee.first_name, Employee.last_name)
+        )
+        return list(result.scalars().all())
+
+    async def get_my_team(
+        self, db: AsyncSession, tenant_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> tuple[list[Employee], str]:
+        """Reportees first; if none, peers under the same manager."""
+        reportees = await self.get_all_reportees(db, tenant_id, employee_id)
+        if reportees:
+            return reportees, "reportees"
+        peers = await self.get_peers_under_manager(db, tenant_id, employee_id)
+        return peers, "peers"
+
     async def update(
         self, db: AsyncSession, employee: Employee, data: EmployeeUpdate
     ) -> Employee:

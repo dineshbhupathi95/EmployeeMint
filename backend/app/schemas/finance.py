@@ -54,6 +54,7 @@ class CompensationResponse(BaseModel):
     deductions: dict
     source: str
     offer_letter_id: uuid.UUID | None
+    tax_computation: dict | None = None
     model_config = {"from_attributes": True}
 
 
@@ -61,10 +62,16 @@ class CompensationUpsertRequest(BaseModel):
     ctc: str = Field(min_length=1, max_length=100)
     designation: str | None = Field(default=None, max_length=255)
     joining_date: date | None = None
+    tax_regime: str = Field(default="new", pattern="^(new|old)$")
     gross_monthly: Decimal | None = Field(default=None, gt=0)
     net_monthly: Decimal | None = Field(default=None, gt=0)
     earnings: dict | None = None
     deductions: dict | None = None
+
+
+class TaxPreviewRequest(BaseModel):
+    ctc: str = Field(min_length=1, max_length=100)
+    tax_regime: str = Field(default="new", pattern="^(new|old)$")
 
 
 class MyPayResponse(BaseModel):
@@ -72,3 +79,4 @@ class MyPayResponse(BaseModel):
     compensation: CompensationResponse | None = None
     payslip_count: int = 0
     message: str | None = None
+    tax_computation: dict | None = None

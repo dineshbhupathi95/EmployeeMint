@@ -32,6 +32,8 @@ class UserInfo(BaseModel):
     email: str
     tenant_id: uuid.UUID | None = None
     tenant_slug: str | None = None
+    tenant_name: str | None = None
+    has_logo: bool = False
     employee_id: uuid.UUID | None = None
     employee_code: str | None = None
     full_name: str | None = None

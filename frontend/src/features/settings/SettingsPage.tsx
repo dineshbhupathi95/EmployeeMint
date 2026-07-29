@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Eye, EyeOff, ImagePlus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal, PageHeader } from "@/components/ui/Modal";
-import { useAuthStore } from "@/store/auth";
+import { useAuthStore, type UserInfo } from "@/store/auth";
+import { useAnyPermission } from "@/hooks/usePermission";
 
 interface Holiday { id: string; name: string; date: string; is_optional: boolean }
 interface LeaveType { id: string; name: string; code: string; annual_quota: number }
@@ -21,10 +22,27 @@ interface Announcement {
 interface Permission { id: string; code: string; name: string; module: string }
 interface Role { id: string; name: string; description: string | null; is_system: boolean; permissions: Permission[] }
 
+interface Branding {
+  name: string;
+  slug: string;
+  has_logo: boolean;
+}
+
 export function SettingsPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const setUser = useAuthStore((s) => s.setUser);
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"holidays" | "leave" | "roles" | "workflows" | "announcements">("holidays");
+  const canManageBranding = useAnyPermission(["settings.manage", "org.manage"]);
+  const [tab, setTab] = useState<"branding" | "holidays" | "leave" | "roles" | "workflows" | "announcements">(
+    "branding",
+  );
+
+  const [orgName, setOrgName] = useState("");
+  const [brandMsg, setBrandMsg] = useState("");
+  const [brandErr, setBrandErr] = useState("");
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [holidayForm, setHolidayForm] = useState({ name: "", date: "" });
   const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
@@ -38,6 +56,46 @@ export function SettingsPage() {
   const [roleModal, setRoleModal] = useState(false);
   const [editRole, setEditRole] = useState<Role | null>(null);
   const [roleForm, setRoleForm] = useState({ name: "", description: "", permission_codes: [] as string[] });
+
+  const refreshMe = async () => {
+    const me = await apiRequest<UserInfo>("/api/v1/auth/me", { token: accessToken });
+    setUser(me);
+  };
+
+  const { data: branding } = useQuery({
+    queryKey: ["branding"],
+    queryFn: () => apiRequest<Branding>("/api/v1/settings/branding", { token: accessToken }),
+    enabled: tab === "branding",
+  });
+
+  useEffect(() => {
+    if (branding) setOrgName(branding.name);
+  }, [branding]);
+
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    async function loadLogo() {
+      if (!branding?.has_logo || !accessToken) {
+        setLogoPreview(null);
+        return;
+      }
+      try {
+        const { apiDownload } = await import("@/api/client");
+        const blob = await apiDownload("/api/v1/settings/branding/logo", accessToken);
+        if (cancelled) return;
+        url = URL.createObjectURL(blob);
+        setLogoPreview(url);
+      } catch {
+        if (!cancelled) setLogoPreview(null);
+      }
+    }
+    loadLogo();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [branding?.has_logo, accessToken, branding?.name]);
 
   const { data: holidays } = useQuery({
     queryKey: ["holidays"],
@@ -70,6 +128,73 @@ export function SettingsPage() {
   });
 
   const invalidate = (keys: string[]) => keys.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+
+  const saveBranding = useMutation({
+    mutationFn: () =>
+      apiRequest<Branding>("/api/v1/settings/branding", {
+        method: "PUT",
+        token: accessToken,
+        body: JSON.stringify({ name: orgName }),
+      }),
+    onSuccess: async () => {
+      setBrandErr("");
+      setBrandMsg("Organization name updated.");
+      invalidate(["branding"]);
+      await refreshMe();
+      setTimeout(() => setBrandMsg(""), 3000);
+    },
+    onError: (e: Error) => setBrandErr(e.message),
+  });
+
+  const uploadLogo = async (file: File | null) => {
+    if (!file) return;
+    setLogoBusy(true);
+    setBrandErr("");
+    setBrandMsg("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(`${API_BASE}/api/v1/settings/branding/logo`, {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const msg =
+          body?.detail?.error?.message ||
+          body?.error?.message ||
+          res.statusText ||
+          "Upload failed";
+        throw new Error(msg);
+      }
+      setBrandMsg("Logo uploaded.");
+      invalidate(["branding"]);
+      await refreshMe();
+      setTimeout(() => setBrandMsg(""), 3000);
+    } catch (e) {
+      setBrandErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setLogoBusy(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  const removeLogo = useMutation({
+    mutationFn: () =>
+      apiRequest<Branding>("/api/v1/settings/branding/logo", {
+        method: "DELETE",
+        token: accessToken,
+      }),
+    onSuccess: async () => {
+      setBrandMsg("Logo removed.");
+      invalidate(["branding"]);
+      await refreshMe();
+      setTimeout(() => setBrandMsg(""), 3000);
+    },
+    onError: (e: Error) => setBrandErr(e.message),
+  });
 
   const addHoliday = useMutation({
     mutationFn: () => apiRequest("/api/v1/settings/holidays", { method: "POST", token: accessToken, body: JSON.stringify(holidayForm) }),
@@ -175,6 +300,7 @@ export function SettingsPage() {
   };
 
   const tabs = [
+    { id: "branding" as const, label: "Org name & logo" },
     { id: "holidays" as const, label: "Holidays" },
     { id: "leave" as const, label: "Leave Types" },
     { id: "roles" as const, label: "Roles & Permissions" },
@@ -189,7 +315,10 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Configure policies, roles, and workflows" />
+      <PageHeader
+        title="Settings"
+        description="Org name & logo, policies, roles, and workflows"
+      />
 
       <div className="mb-6 flex flex-wrap gap-2">
         {tabs.map((t) => (
@@ -198,6 +327,93 @@ export function SettingsPage() {
           </Button>
         ))}
       </div>
+
+      {tab === "branding" && (
+        <Card>
+          <CardHeader
+            title="Organization name & logo"
+            description="Shown in the left sidebar and top bar for everyone in this workspace"
+          />
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Organization logo" className="h-full w-full object-contain p-1" />
+                ) : (
+                  <span className="text-lg font-bold text-brand-600">
+                    {(orgName || "OR").slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-3">
+                <p className="text-sm text-slate-600">JPG, PNG, WebP, or SVG · max 2MB</p>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml,.jpg,.jpeg,.png,.webp,.svg"
+                  className="hidden"
+                  onChange={(e) => uploadLogo(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    disabled={logoBusy || !canManageBranding}
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <ImagePlus className="mr-1.5 h-4 w-4" />
+                    {logoBusy ? "Uploading…" : branding?.has_logo ? "Change logo" : "Upload logo"}
+                  </Button>
+                  {branding?.has_logo && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={removeLogo.isPending || !canManageBranding}
+                      onClick={() => removeLogo.mutate()}
+                    >
+                      <Trash2 className="mr-1.5 h-4 w-4" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <form
+              className="space-y-4 border-t border-slate-100 pt-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveBranding.mutate();
+              }}
+            >
+              <Input
+                label="Organization name"
+                required
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                disabled={!canManageBranding}
+                placeholder="e.g. Acme Technologies"
+              />
+              {branding?.slug && (
+                <p className="text-xs text-slate-500">
+                  Workspace slug (login): <span className="font-mono">{branding.slug}</span>
+                </p>
+              )}
+              {!canManageBranding && (
+                <p className="text-sm text-amber-700">
+                  You can view branding here. Ask an Org Admin or HR Admin to change the name or logo.
+                </p>
+              )}
+              {brandErr && <p className="text-sm text-red-600">{brandErr}</p>}
+              {brandMsg && <p className="text-sm text-green-600">{brandMsg}</p>}
+              {canManageBranding && (
+                <Button type="submit" disabled={saveBranding.isPending}>
+                  {saveBranding.isPending ? "Saving…" : "Save organization name"}
+                </Button>
+              )}
+            </form>
+          </div>
+        </Card>
+      )}
 
       {tab === "holidays" && (
         <Card>

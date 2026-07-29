@@ -53,6 +53,8 @@ class Tenant(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_setup_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     enabled_modules: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    logo_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class TenantSetting(Base, TenantScopedMixin):

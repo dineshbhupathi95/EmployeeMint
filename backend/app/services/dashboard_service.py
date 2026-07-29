@@ -163,7 +163,7 @@ class DashboardService:
         if employee_id and "employee.view.team" in permissions:
             from app.services.employee_service import EmployeeService
 
-            members = await EmployeeService().get_all_reportees(db, tenant_id, employee_id)
+            members, _scope = await EmployeeService().get_my_team(db, tenant_id, employee_id)
             data["team_total"] = len(members)
             if members:
                 att = await db.execute(

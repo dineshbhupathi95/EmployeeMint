@@ -3,6 +3,7 @@ import { Bell, LogOut, Palette, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "@/api/client";
+import { OrgBrand } from "@/components/OrgBrand";
 import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 import { notificationRoute } from "@/lib/notificationRoutes";
@@ -79,8 +80,9 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-end border-b border-slate-200 bg-white/95 px-4 sm:px-6 backdrop-blur">
-      <div className="flex items-center gap-1 sm:gap-2">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-4 sm:px-6 backdrop-blur">
+      <OrgBrand size="sm" className="min-w-0 flex-1" nameClassName="text-sm font-semibold text-slate-800" />
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button

@@ -71,3 +71,5 @@ class TeamMemberResponse(EmployeeResponse):
     checked_out_today: bool = False
     check_in_time: datetime | None = None
     attendance_mode: str | None = None
+    relation: str = "reportee"  # reportee | peer
+    manager_name: str | None = None

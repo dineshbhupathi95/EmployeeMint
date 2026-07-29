@@ -10,6 +10,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 import { useAuthStore, type UserInfo } from "@/store/auth";
 import { THEMES, useThemeStore } from "@/store/theme";
+import { EmployeeBackgroundDetails } from "@/features/profile/EmployeeBackgroundDetails";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -332,7 +333,7 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader title="My Profile" description="Personal info, photo, onboarding tasks, and documents" />
+      <PageHeader title="My Profile" description="Personal info, education, work history, onboarding, and documents" />
 
       <Card>
         <CardHeader title="Profile photo" description="Shown on your profile and in the top bar" />
@@ -634,6 +635,8 @@ export function ProfilePage() {
           </Button>
         </form>
       </Card>
+
+      {me?.employee_id && <EmployeeBackgroundDetails mode="own" />}
 
       <Card>
         <CardHeader title="Appearance" description="Choose your preferred accent color" />

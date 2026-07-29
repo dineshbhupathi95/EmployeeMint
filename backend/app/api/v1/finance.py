@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, get_current_user, require_permission
+from app.api.deps import CurrentUser, get_current_user, require_any_permission, require_permission
 from app.core.database import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.finance import (
@@ -14,11 +14,26 @@ from app.schemas.finance import (
     ReimbursementCategoryResponse,
     ReimbursementClaimResponse,
     ReimbursementSubmitRequest,
+    TaxPreviewRequest,
 )
 from app.services.finance_service import FinanceService
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 finance_service = FinanceService()
+
+
+def _compensation_response(comp) -> CompensationResponse:
+    enriched = finance_service.enrichment_for_compensation(comp)
+    base = CompensationResponse.model_validate(comp)
+    return base.model_copy(
+        update={
+            "earnings": enriched["earnings"],
+            "deductions": {k: v for k, v in enriched["deductions"].items() if k != "tax_regime"},
+            "gross_monthly": enriched["gross_monthly"],
+            "net_monthly": enriched["net_monthly"],
+            "tax_computation": enriched["tax_computation"],
+        }
+    )
 
 
 @router.get("/my-pay", response_model=MyPayResponse)
@@ -49,10 +64,12 @@ async def my_pay(
             ),
         )
 
+    response_comp = _compensation_response(comp)
     return MyPayResponse(
         configured=True,
-        compensation=CompensationResponse.model_validate(comp),
+        compensation=response_comp,
         payslip_count=len(payslips),
+        tax_computation=response_comp.tax_computation,
     )
 
 
@@ -68,7 +85,7 @@ async def get_employee_compensation(
             status_code=404,
             detail={"error": {"code": "NOT_FOUND", "message": "Compensation not configured for this employee"}},
         )
-    return CompensationResponse.model_validate(comp)
+    return _compensation_response(comp)
 
 
 @router.put("/compensation/{employee_id}", response_model=CompensationResponse)
@@ -87,12 +104,22 @@ async def configure_employee_compensation(
         designation=data.designation,
         joining_date=data.joining_date,
         source="admin",
+        tax_regime=data.tax_regime,
         earnings=data.earnings,
         deductions=data.deductions,
         gross_monthly=data.gross_monthly,
         net_monthly=data.net_monthly,
     )
-    return CompensationResponse.model_validate(comp)
+    return _compensation_response(comp)
+
+
+@router.post("/tax-preview")
+async def tax_preview(
+    data: TaxPreviewRequest,
+    current_user: CurrentUser = Depends(require_any_permission("payroll.view.own", "payroll.process")),
+):
+    """Preview automatic tax + net pay for a CTC."""
+    return finance_service.compute_pay_from_ctc(data.ctc, tax_regime=data.tax_regime)
 
 
 @router.get("/payslips", response_model=list[PayslipResponse])

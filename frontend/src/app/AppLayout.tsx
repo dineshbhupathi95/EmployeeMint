@@ -19,6 +19,7 @@ import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { TopBar } from "@/components/TopBar";
 import { AnnouncementTicker } from "@/components/AnnouncementTicker";
+import { OrgBrand } from "@/components/OrgBrand";
 import { useModuleVisible } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
@@ -144,11 +145,8 @@ export function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="flex h-full w-64 shrink-0 flex-col border-r-4 border-brand-600 bg-white transition-colors">
-        <div className="shrink-0 border-b border-brand-100 bg-brand-50 p-6 transition-colors">
-          <h1 className="text-lg font-bold text-brand-700 transition-colors">EmployeeMint</h1>
-          {user?.tenant_slug && (
-            <p className="mt-1 text-xs text-slate-500">{user.tenant_slug}</p>
-          )}
+        <div className="shrink-0 border-b border-brand-100 bg-brand-50 p-5 transition-colors">
+          <OrgBrand showSlug size="lg" nameClassName="text-lg" />
         </div>
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {NAV_ITEMS.map((item) => (

@@ -8,7 +8,8 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-
+import { EmployeeBackgroundDetails } from "@/features/profile/EmployeeBackgroundDetails";
+import { usePermission } from "@/hooks/usePermission";
 interface Employee {
   id: string;
   employee_code: string;
@@ -49,8 +50,10 @@ const emptyForm = {
 export function EmployeesPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
+  const canViewBackground = usePermission("employee.view.all");
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Employee | null>(null);
+  const [backgroundEmployee, setBackgroundEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
 
@@ -212,11 +215,22 @@ export function EmployeesPage() {
                   <td>{e.leave_type_ids?.length ?? 0} types</td>
                   <td className="capitalize">{e.employment_status}</td>
                   <td>
-                    <Can permission="employee.edit.all">
-                      <button onClick={() => openEdit(e)} className="text-brand-600 hover:underline">
-                        Edit
-                      </button>
-                    </Can>
+                    <div className="flex flex-wrap gap-3">
+                      {canViewBackground && (
+                        <button
+                          type="button"
+                          onClick={() => setBackgroundEmployee(e)}
+                          className="text-brand-600 hover:underline"
+                        >
+                          Background
+                        </button>
+                      )}
+                      <Can permission="employee.edit.all">
+                        <button type="button" onClick={() => openEdit(e)} className="text-brand-600 hover:underline">
+                          Edit
+                        </button>
+                      </Can>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -409,6 +423,21 @@ export function EmployeesPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={backgroundEmployee !== null}
+        onClose={() => setBackgroundEmployee(null)}
+        title={
+          backgroundEmployee
+            ? `Background — ${backgroundEmployee.first_name} ${backgroundEmployee.last_name}`
+            : "Background check"
+        }
+        wide
+      >
+        {backgroundEmployee && (
+          <EmployeeBackgroundDetails mode="hr" employeeId={backgroundEmployee.id} />
+        )}
       </Modal>
     </div>
   );

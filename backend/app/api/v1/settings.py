@@ -1,19 +1,22 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUser, get_current_user, require_permission
+from app.api.deps import CurrentUser, get_current_user, require_any_permission, require_permission
 from app.core.database import get_db
-from app.models import Announcement, ApprovalWorkflow, Holiday, LeaveType, Notification
+from app.models import Announcement, ApprovalWorkflow, Holiday, LeaveType, Notification, Tenant
 from app.schemas.leave import LeaveTypeResponse
 from app.schemas.settings import (
     AnnouncementCreate,
     AnnouncementResponse,
     AnnouncementUpdate,
+    BrandingResponse,
+    BrandingUpdate,
     HolidayCreate,
     HolidayResponse,
     HolidayUpdate,
@@ -22,11 +25,109 @@ from app.schemas.settings import (
     WorkflowResponse,
     WorkflowStepSchema,
 )
+from app.services.branding_service import BrandingService
 from app.services.dashboard_service import NotificationService, OrganizationService
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 notification_service = NotificationService()
 org_service = OrganizationService()
+branding_service = BrandingService()
+
+
+@router.get("/branding", response_model=BrandingResponse)
+async def get_branding(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=400, detail={"error": {"code": "NO_TENANT", "message": "No tenant"}})
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Tenant not found"}})
+    return BrandingResponse(name=tenant.name, slug=tenant.slug, has_logo=bool(tenant.logo_path))
+
+
+@router.put("/branding", response_model=BrandingResponse)
+async def update_branding(
+    data: BrandingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_any_permission("settings.manage", "org.manage")),
+):
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Tenant not found"}})
+    try:
+        await branding_service.update_name(db, tenant, data.name)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": {"code": "VALIDATION", "message": str(e)}}) from e
+    await db.refresh(tenant)
+    return BrandingResponse(name=tenant.name, slug=tenant.slug, has_logo=bool(tenant.logo_path))
+
+
+@router.post("/branding/logo", response_model=BrandingResponse)
+async def upload_branding_logo(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_any_permission("settings.manage", "org.manage")),
+):
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Tenant not found"}})
+    content = await file.read()
+    try:
+        await branding_service.save_logo(
+            db,
+            tenant=tenant,
+            file_name=file.filename or "logo",
+            content_type=file.content_type,
+            content=content,
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": {"code": "VALIDATION", "message": str(e)}}) from e
+    await db.refresh(tenant)
+    return BrandingResponse(name=tenant.name, slug=tenant.slug, has_logo=bool(tenant.logo_path))
+
+
+@router.get("/branding/logo")
+async def get_branding_logo(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=400, detail={"error": {"code": "NO_TENANT", "message": "No tenant"}})
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant or not tenant.logo_path:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Logo not found"}})
+    path = branding_service.absolute_path(tenant.logo_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Logo file missing"}})
+    return FileResponse(
+        path,
+        media_type=tenant.logo_content_type or "image/png",
+        filename=path.name,
+        content_disposition_type="inline",
+    )
+
+
+@router.delete("/branding/logo", response_model=BrandingResponse)
+async def delete_branding_logo(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_any_permission("settings.manage", "org.manage")),
+):
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Tenant not found"}})
+    await branding_service.delete_logo(db, tenant)
+    await db.commit()
+    await db.refresh(tenant)
+    return BrandingResponse(name=tenant.name, slug=tenant.slug, has_logo=False)
 
 
 @router.get("/holidays", response_model=list[HolidayResponse])

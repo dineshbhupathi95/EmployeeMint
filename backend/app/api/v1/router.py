@@ -6,6 +6,7 @@ from app.api.v1 import (
     auth,
     dashboard,
     documents,
+    employee_details,
     employees,
     finance,
     leave,
@@ -32,3 +33,4 @@ api_router.include_router(settings.router)
 api_router.include_router(lifecycle.router)
 api_router.include_router(timesheets.router)
 api_router.include_router(documents.router)
+api_router.include_router(employee_details.router)

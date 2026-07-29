@@ -9,7 +9,8 @@ A configuration-driven, multi-tenant HRMS platform for companies with 10–5,000
 - **Auth:** JWT (access + refresh) with tenant context in claims
 - **Multi-tenancy:** Shared DB/schema with `tenant_id` + PostgreSQL Row-Level Security
 
-See [docs/SPEC.md](docs/SPEC.md) for the full product specification.
+See [docs/SPEC.md](docs/SPEC.md) for the full product specification.  
+See **[docs/HLD.md](docs/HLD.md)** (High Level Design) and **[docs/LLD.md](docs/LLD.md)** (Low Level Design) for architecture, tech stack, users, and flows with diagrams.
 
 ## Quick Start
 
@@ -74,6 +75,9 @@ docker compose up --build
 /backend          FastAPI application
 /frontend         React SPA
 /docs/SPEC.md     Master specification (contract)
+/docs/HLD.md      High Level Design (architecture, users, journeys)
+/docs/LLD.md      Low Level Design (APIs, data model, sequences)
+/docs/assets/     Architecture and flow diagrams
 ```
 
 ## Development

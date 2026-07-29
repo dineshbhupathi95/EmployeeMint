@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Employee, EmployeeCompensation, OfferLetter, Payslip, ReimbursementCategory, ReimbursementClaim, User
+from app.services.tax_service import compute_income_tax, compute_professional_tax_monthly
 from app.services.workflow_service import WorkflowService
 
 
@@ -27,9 +28,13 @@ def parse_ctc_annual(ctc: str | None) -> Decimal | None:
     return value.quantize(Decimal("0.01"))
 
 
-def build_salary_breakdown(ctc_annual: Decimal | None) -> tuple[dict, dict, Decimal | None, Decimal | None]:
+def build_salary_breakdown(
+    ctc_annual: Decimal | None,
+    *,
+    tax_regime: str = "new",
+) -> tuple[dict, dict, Decimal | None, Decimal | None, dict | None]:
     if not ctc_annual or ctc_annual <= 0:
-        return {}, {}, None, None
+        return {}, {}, None, None, None
 
     basic_annual = (ctc_annual * Decimal("0.40")).quantize(Decimal("0.01"), ROUND_HALF_UP)
     hra_annual = (ctc_annual * Decimal("0.20")).quantize(Decimal("0.01"), ROUND_HALF_UP)
@@ -41,8 +46,17 @@ def build_salary_breakdown(ctc_annual: Decimal | None) -> tuple[dict, dict, Deci
     gross_monthly = (ctc_annual / 12).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     pf = (basic_monthly * Decimal("0.12")).quantize(Decimal("0.01"), ROUND_HALF_UP)
-    professional_tax = Decimal("200.00")
-    tax_estimate = (gross_monthly * Decimal("0.05")).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    pf_annual = (pf * 12).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    professional_tax = compute_professional_tax_monthly(gross_monthly)
+
+    regime = "old" if tax_regime == "old" else "new"
+    tax = compute_income_tax(
+        annual_gross=ctc_annual,
+        employee_pf_annual=pf_annual,
+        regime=regime,
+    )
+    tax_estimate = Decimal(str(tax["monthly_tds"]))
+
     net_monthly = gross_monthly - pf - professional_tax - tax_estimate
 
     earnings = {
@@ -55,12 +69,26 @@ def build_salary_breakdown(ctc_annual: Decimal | None) -> tuple[dict, dict, Deci
         "professional_tax": float(professional_tax),
         "income_tax_tds": float(tax_estimate),
     }
-    return earnings, deductions, gross_monthly, net_monthly
+    return earnings, deductions, gross_monthly, net_monthly, tax
 
 
 class FinanceService:
     def __init__(self) -> None:
         self.workflow = WorkflowService()
+
+    def compute_pay_from_ctc(self, ctc: str | None, tax_regime: str = "new") -> dict:
+        ctc_annual = parse_ctc_annual(ctc)
+        earnings, deductions, gross, net, tax = build_salary_breakdown(
+            ctc_annual, tax_regime=tax_regime
+        )
+        return {
+            "ctc_annual": float(ctc_annual) if ctc_annual is not None else None,
+            "gross_monthly": float(gross) if gross is not None else None,
+            "net_monthly": float(net) if net is not None else None,
+            "earnings": earnings,
+            "deductions": deductions,
+            "tax_computation": tax,
+        }
 
     async def _find_employee_by_email(
         self, db: AsyncSession, tenant_id: uuid.UUID, email: str
@@ -92,6 +120,33 @@ class FinanceService:
         )
         return result.scalar_one_or_none()
 
+    def enrichment_for_compensation(
+        self, comp: EmployeeCompensation, tax_regime: str | None = None
+    ) -> dict:
+        """Recompute tax/net from CTC so My Pay always shows current automatic tax rules."""
+        regime = tax_regime or (comp.deductions or {}).get("tax_regime") or "new"
+        if isinstance(regime, str) and regime not in ("new", "old"):
+            regime = "new"
+        earnings, deductions, gross, net, tax = build_salary_breakdown(
+            comp.ctc_annual, tax_regime=str(regime)
+        )
+        if not tax:
+            return {
+                "earnings": comp.earnings or {},
+                "deductions": comp.deductions or {},
+                "gross_monthly": comp.gross_monthly,
+                "net_monthly": comp.net_monthly,
+                "tax_computation": None,
+            }
+        deductions_out = {**deductions, "tax_regime": regime}
+        return {
+            "earnings": earnings,
+            "deductions": deductions_out,
+            "gross_monthly": gross,
+            "net_monthly": net,
+            "tax_computation": tax,
+        }
+
     async def upsert_compensation(
         self,
         db: AsyncSession,
@@ -104,18 +159,24 @@ class FinanceService:
         joining_date: date | None = None,
         source: str = "admin",
         offer_letter_id: uuid.UUID | None = None,
+        tax_regime: str = "new",
         earnings: dict | None = None,
         deductions: dict | None = None,
         gross_monthly: Decimal | None = None,
         net_monthly: Decimal | None = None,
     ) -> EmployeeCompensation:
         ctc_annual = parse_ctc_annual(ctc)
+        regime = "old" if tax_regime == "old" else "new"
         if earnings is None or deductions is None:
-            calc_earnings, calc_deductions, calc_gross, calc_net = build_salary_breakdown(ctc_annual)
+            calc_earnings, calc_deductions, calc_gross, calc_net, _tax = build_salary_breakdown(
+                ctc_annual, tax_regime=regime
+            )
             earnings = earnings or calc_earnings
-            deductions = deductions or calc_deductions
+            deductions = {**(deductions or calc_deductions), "tax_regime": regime}
             gross_monthly = gross_monthly or calc_gross
             net_monthly = net_monthly or calc_net
+        else:
+            deductions = {**deductions, "tax_regime": regime}
 
         existing = await self.get_compensation(db, tenant_id, employee_id)
         if existing:
@@ -167,6 +228,7 @@ class FinanceService:
             joining_date=offer.joining_date,
             source="offer_letter",
             offer_letter_id=offer.id,
+            tax_regime="new",
         )
 
     async def try_sync_offer_for_new_employee(
@@ -181,12 +243,14 @@ class FinanceService:
                 emails.append(user.email)
         for email in emails:
             result = await db.execute(
-                select(OfferLetter).where(
+                select(OfferLetter)
+                .where(
                     OfferLetter.tenant_id == tenant_id,
                     OfferLetter.is_deleted.is_(False),
                     OfferLetter.status == "released",
                     func.lower(OfferLetter.candidate_email) == email.lower().strip(),
-                ).order_by(OfferLetter.updated_at.desc())
+                )
+                .order_by(OfferLetter.updated_at.desc())
             )
             offer = result.scalar_one_or_none()
             if offer:

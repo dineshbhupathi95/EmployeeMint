@@ -6,6 +6,8 @@ export interface UserInfo {
   email: string;
   tenant_id?: string | null;
   tenant_slug?: string | null;
+  tenant_name?: string | null;
+  has_logo?: boolean;
   employee_id?: string | null;
   employee_code?: string | null;
   full_name?: string | null;

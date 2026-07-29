@@ -77,3 +77,13 @@ class WorkflowResponse(BaseModel):
     request_type: str
     is_active: bool
     steps: list[WorkflowStepSchema] = []
+
+
+class BrandingUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class BrandingResponse(BaseModel):
+    name: str
+    slug: str
+    has_logo: bool

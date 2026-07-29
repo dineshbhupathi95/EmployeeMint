@@ -14,7 +14,7 @@ from app.models.misc import (
     OnboardingChecklist,
     OnboardingTask,
 )
-from app.models.organization import Department, Designation, Employee, Location, User
+from app.models.organization import Department, Designation, Employee, EmployeeEducation, EmployeeWorkExperience, Location, User
 from app.models.platform import PlatformAdmin, Tenant, TenantSetting
 from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.workflow import ApprovalRequest, ApprovalRequestStep, ApprovalWorkflow, ApprovalWorkflowStep
@@ -25,6 +25,8 @@ __all__ = [
     "TenantSetting",
     "User",
     "Employee",
+    "EmployeeEducation",
+    "EmployeeWorkExperience",
     "Department",
     "Designation",
     "Location",
