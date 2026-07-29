@@ -10,7 +10,8 @@ A configuration-driven, multi-tenant HRMS platform for companies with 10–5,000
 - **Multi-tenancy:** Shared DB/schema with `tenant_id` + PostgreSQL Row-Level Security
 
 See [docs/SPEC.md](docs/SPEC.md) for the full product specification.  
-See **[docs/HLD.md](docs/HLD.md)** (High Level Design) and **[docs/LLD.md](docs/LLD.md)** (Low Level Design) for architecture, tech stack, users, and flows with diagrams.
+See **[docs/HLD.md](docs/HLD.md)** (High Level Design) and **[docs/LLD.md](docs/LLD.md)** (Low Level Design) for architecture, tech stack, users, and flows with diagrams.  
+See **[docs/CLOUDFLARE_TUNNEL.md](docs/CLOUDFLARE_TUNNEL.md)** to expose the app via Cloudflare Tunnel (phone, other laptops, outside your network).
 
 ## Quick Start
 

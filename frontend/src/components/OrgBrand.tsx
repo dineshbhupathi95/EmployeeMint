@@ -16,11 +16,13 @@ const SIZE: Record<Size, string> = {
 export function OrgBrand({
   size = "md",
   showSlug = false,
+  iconOnly = false,
   className,
   nameClassName,
 }: {
   size?: Size;
   showSlug?: boolean;
+  iconOnly?: boolean;
   className?: string;
   nameClassName?: string;
 }) {
@@ -95,12 +97,14 @@ export function OrgBrand({
           {name.slice(0, 2).toUpperCase()}
         </div>
       )}
-      <div className="min-w-0">
-        <p className={cn("truncate font-bold text-brand-700", nameClassName)}>{name}</p>
-        {showSlug && user?.tenant_slug && (
-          <p className="truncate text-xs text-slate-500">{user.tenant_slug}</p>
-        )}
-      </div>
+      {!iconOnly && (
+        <div className="min-w-0">
+          <p className={cn("truncate font-bold text-brand-700", nameClassName)}>{name}</p>
+          {showSlug && user?.tenant_slug && (
+            <p className="truncate text-xs text-slate-500">{user.tenant_slug}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

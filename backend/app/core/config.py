@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
     jwt_algorithm: str = "HS256"
 
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,https://quizzes-defeat-chelsea-medicines.trycloudflare.com/"
 
     s3_endpoint: str = "http://localhost:9000"
     s3_access_key: str = "minioadmin"

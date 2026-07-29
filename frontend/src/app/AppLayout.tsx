@@ -4,6 +4,8 @@ import {
   Calendar,
   CheckSquare,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Clock,
   FileText,
@@ -15,7 +17,7 @@ import {
   Wallet,
   UserCheck,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { TopBar } from "@/components/TopBar";
 import { AnnouncementTicker } from "@/components/AnnouncementTicker";
@@ -23,6 +25,8 @@ import { OrgBrand } from "@/components/OrgBrand";
 import { useModuleVisible } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
+
+const SIDEBAR_COLLAPSED_KEY = "employeemint-sidebar-collapsed";
 
 type NavItemConfig = {
   path: string;
@@ -63,14 +67,24 @@ const HR_LIFECYCLE_GROUP: NavGroupConfig = {
   ],
 };
 
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function NavItem({
   item,
   active,
   nested = false,
+  collapsed = false,
 }: {
   item: NavItemConfig;
   active: boolean;
   nested?: boolean;
+  collapsed?: boolean;
 }) {
   const visible = useModuleVisible(item.module);
   if (!visible) return null;
@@ -78,31 +92,94 @@ function NavItem({
   return (
     <Link
       to={item.path}
+      title={collapsed ? item.label : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-        nested && "pl-9",
+        "flex items-center rounded-lg text-sm font-medium transition-colors",
+        collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2",
+        nested && !collapsed && "pl-9",
         active
           ? "bg-brand-600 text-white"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
       )}
     >
-      <Icon className="h-4 w-4" />
-      {item.label}
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   );
 }
 
-function NavGroup({ group }: { group: NavGroupConfig }) {
+function NavGroup({
+  group,
+  collapsed = false,
+}: {
+  group: NavGroupConfig;
+  collapsed?: boolean;
+}) {
   const location = useLocation();
   const groupVisible = useModuleVisible(group.module);
   const [open, setOpen] = useState(() =>
     group.children.some((child) => location.pathname.startsWith(child.path)),
   );
-
-  if (!groupVisible) return null;
+  const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const flyoutRef = useRef<HTMLDivElement>(null);
 
   const isActive = group.children.some((child) => location.pathname.startsWith(child.path));
   const Icon = group.icon;
+
+  useEffect(() => {
+    if (!flyoutOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
+        setFlyoutOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [flyoutOpen]);
+
+  useEffect(() => {
+    setFlyoutOpen(false);
+  }, [location.pathname]);
+
+  if (!groupVisible) return null;
+
+  if (collapsed) {
+    return (
+      <div className="relative" ref={flyoutRef}>
+        <button
+          type="button"
+          title={group.label}
+          onClick={() => setFlyoutOpen((v) => !v)}
+          className={cn(
+            "flex w-full items-center justify-center rounded-lg p-2.5 text-sm font-medium transition-colors",
+            isActive || flyoutOpen
+              ? "bg-brand-600 text-white"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+          )}
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+        </button>
+        {flyoutOpen && (
+          <div
+            className="absolute left-full top-0 z-50 ml-2 min-w-[11rem] rounded-lg border border-slate-200 bg-white p-2 shadow-lg"
+          >
+            <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {group.label}
+            </p>
+            <div className="space-y-1">
+              {group.children.map((child) => (
+                <NavItem
+                  key={child.path}
+                  item={child}
+                  active={location.pathname.startsWith(child.path)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -116,9 +193,9 @@ function NavGroup({ group }: { group: NavGroupConfig }) {
             : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
         )}
       >
-        <Icon className="h-4 w-4" />
+        <Icon className="h-4 w-4 shrink-0" />
         <span className="flex-1 text-left">{group.label}</span>
-        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <div className="mt-1 space-y-1">
@@ -141,48 +218,130 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const settingsVisible = useModuleVisible("settings");
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+
+  useEffect(() => {
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="flex h-full w-64 shrink-0 flex-col border-r-4 border-brand-600 bg-white transition-colors">
-        <div className="shrink-0 border-b border-brand-100 bg-brand-50 p-5 transition-colors">
-          <OrgBrand showSlug size="lg" nameClassName="text-lg" />
+    <div className="h-dvh overflow-hidden">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-30 flex h-dvh flex-col border-r-4 border-brand-600 bg-white transition-[width] duration-200 ease-in-out",
+          collapsed ? "w-[4.5rem]" : "w-64",
+        )}
+      >
+        <div
+          className={cn(
+            "shrink-0 border-b border-brand-100 bg-brand-50 transition-colors",
+            collapsed ? "p-3" : "p-5",
+          )}
+        >
+          <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2")}>
+            <OrgBrand
+              showSlug={!collapsed}
+              iconOnly={collapsed}
+              size={collapsed ? "md" : "lg"}
+              nameClassName="text-lg"
+              className={collapsed ? "justify-center" : undefined}
+            />
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                title="Collapse sidebar"
+                className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-slate-700"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {collapsed && (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Expand sidebar"
+              className="mt-3 flex w-full items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-slate-700"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+        <nav
+          className={cn(
+            "min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden overscroll-y-contain",
+            collapsed ? "p-2" : "p-4",
+          )}
+        >
           {NAV_ITEMS.map((item) => (
             <NavItem
               key={item.path}
               item={item}
+              collapsed={collapsed}
               active={location.pathname.startsWith(item.path)}
             />
           ))}
-          <NavGroup group={HR_LIFECYCLE_GROUP} />
+          <NavGroup group={HR_LIFECYCLE_GROUP} collapsed={collapsed} />
           {settingsVisible && (
             <NavItem
               item={{ path: "/app/settings", label: "Settings", icon: Settings, module: "settings" }}
+              collapsed={collapsed}
               active={location.pathname.startsWith("/app/settings")}
             />
           )}
         </nav>
-        <div className="shrink-0 border-t border-slate-200 p-4">
-          <div className="mb-3 px-3">
-            <p className="text-sm font-medium text-slate-900">{user?.full_name || user?.email}</p>
-            <p className="text-xs text-slate-500">{user?.email}</p>
-          </div>
+        <div className={cn("shrink-0 border-t border-slate-200", collapsed ? "p-2" : "p-4")}>
+          {!collapsed && (
+            <div className="mb-3 px-3">
+              <p className="truncate text-sm font-medium text-slate-900">
+                {user?.full_name || user?.email}
+              </p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            title={collapsed ? "Logout" : undefined}
+            className={cn(
+              "flex w-full items-center rounded-lg text-sm text-slate-600 hover:bg-slate-50",
+              collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2",
+            )}
           >
-            <LogOut className="h-4 w-4" />
-            Logout
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && "Logout"}
           </button>
         </div>
       </aside>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-slate-50">
+      <main
+        className={cn(
+          "flex h-dvh min-w-0 flex-col bg-slate-50 transition-[margin-left] duration-200 ease-in-out",
+          collapsed ? "ml-[4.5rem]" : "ml-64",
+        )}
+      >
         <AnnouncementTicker />
         <TopBar />
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
           {user?.is_impersonation && (
             <div className="bg-amber-100 px-6 py-2 text-center text-sm font-medium text-amber-800">
               You are impersonating this tenant admin (support mode)
