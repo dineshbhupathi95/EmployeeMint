@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     api_v1_prefix: str = "/api/v1"
 
-    database_url: str = "postgresql+asyncpg://hrms:hrms@localhost:5432/hrms"
-    database_url_sync: str = "postgresql+psycopg://hrms:hrms@localhost:5432/hrms"
+    database_url: str = "postgresql+asyncpg://neondb_owner:npg_ZgTCFGLm48DH@ep-crimson-shadow-awq97wjy.c-12.us-east-1.aws.neon.tech/hrms_employeemint"
+    database_url_sync: str = "postgresql+psycopg://neondb_owner:npg_ZgTCFGLm48DH@ep-crimson-shadow-awq97wjy.c-12.us-east-1.aws.neon.tech/hrms_employeemint"
 
     redis_url: str = "redis://localhost:6379/0"
 
