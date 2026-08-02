@@ -170,6 +170,7 @@ async def update_role(
     if data.permission_codes is not None:
         for rp in list(role.role_permissions):
             await db.delete(rp)
+        await db.flush()
         result = await db.execute(select(Permission).where(Permission.code.in_(data.permission_codes)))
         for perm in result.scalars().all():
             db.add(RolePermission(role_id=role.id, permission_id=perm.id))

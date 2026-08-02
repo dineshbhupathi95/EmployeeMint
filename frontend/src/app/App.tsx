@@ -26,6 +26,7 @@ import { ProfilePage } from "@/features/profile/ProfilePage";
 import { SetupWizardPage } from "@/features/setup/SetupWizardPage";
 import { TimesheetsPage } from "@/features/timesheets/TimesheetsPage";
 import { HRLifecyclePage } from "@/features/hrlifecycle/HRLifecyclePage";
+import { AssistantPage } from "@/features/assistant/AssistantPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ export function App() {
               <Route path="onboarding" element={<OnboardingPage />} />
               <Route path="offboarding" element={<OffboardingPage />} />
               <Route path="offer-letters" element={<OfferLettersPage />} />
+              <Route path="assistant" element={<AssistantPage />} />
               </Route>
             </Route>
           </Route>

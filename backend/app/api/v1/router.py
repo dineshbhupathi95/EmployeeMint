@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     approvals,
+    assistant,
     attendance,
     auth,
     dashboard,
@@ -34,3 +35,4 @@ api_router.include_router(lifecycle.router)
 api_router.include_router(timesheets.router)
 api_router.include_router(documents.router)
 api_router.include_router(employee_details.router)
+api_router.include_router(assistant.router)

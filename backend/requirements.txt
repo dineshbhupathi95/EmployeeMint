@@ -18,6 +18,9 @@ boto3==1.35.81
 fpdf2==2.8.2
 python-json-logger==3.2.1
 structlog==24.4.0
+openai==1.59.6
+cryptography==44.0.0
+pypdf==5.1.0
 
 # Dev / test
 pytest==8.3.4

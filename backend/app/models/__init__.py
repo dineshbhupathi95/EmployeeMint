@@ -1,3 +1,4 @@
+from app.models.ai import AiChunk, AiConfig, AiConversation, AiDocument, AiMessage
 from app.models.attendance import AttendanceRecord
 from app.models.timesheet import TimesheetEntry
 from app.models.wfh import WfhRequest
@@ -58,4 +59,9 @@ __all__ = [
     "OfferLetterTemplate",
     "OfferLetter",
     "EmployeeDocument",
+    "AiConfig",
+    "AiDocument",
+    "AiChunk",
+    "AiConversation",
+    "AiMessage",
 ]

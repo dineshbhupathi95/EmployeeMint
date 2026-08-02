@@ -106,6 +106,9 @@ class RBACService:
     async def get_role_matrix(self, db: AsyncSession, tenant_id: uuid.UUID):
         from app.schemas.rbac import PermissionResponse, RolePermissionMatrix, RoleResponse
 
+        # Avoid stale identity-map Role/RolePermission from prior updates in this session
+        db.expire_all()
+
         perms_result = await db.execute(select(Permission).order_by(Permission.module, Permission.code))
         permissions = [PermissionResponse.model_validate(p) for p in perms_result.scalars().all()]
 
@@ -114,16 +117,22 @@ class RBACService:
             .options(selectinload(Role.role_permissions).selectinload(RolePermission.permission))
             .where(Role.tenant_id == tenant_id, Role.is_deleted.is_(False))
             .order_by(Role.name)
+            .execution_options(populate_existing=True)
         )
         roles = []
-        for role in roles_result.scalars().all():
+        for role in roles_result.scalars().unique().all():
+            role_perms = []
+            for rp in role.role_permissions:
+                if rp.permission is None:
+                    continue
+                role_perms.append(PermissionResponse.model_validate(rp.permission))
             roles.append(
                 RoleResponse(
                     id=role.id,
                     name=role.name,
                     description=role.description,
                     is_system=role.is_system,
-                    permissions=[PermissionResponse.model_validate(rp.permission) for rp in role.role_permissions],
+                    permissions=role_perms,
                 )
             )
 

@@ -46,6 +46,9 @@ DEFAULT_PERMISSIONS: list[dict[str, str]] = [
     {"code": "settings.manage", "name": "Manage Tenant Settings", "module": "settings"},
     {"code": "reports.view", "name": "View Reports", "module": "reports"},
     {"code": "workflows.manage", "name": "Manage Approval Workflows", "module": "workflows"},
+    # AI Assistant
+    {"code": "assistant.chat", "name": "Use Company Assistant", "module": "assistant"},
+    {"code": "assistant.manage", "name": "Manage AI Assistant", "module": "assistant"},
 ]
 
 DEFAULT_ROLES: dict[str, list[str]] = {
@@ -68,6 +71,8 @@ DEFAULT_ROLES: dict[str, list[str]] = {
         "performance.manage",
         "approvals.view",
         "approvals.action",
+        "assistant.chat",
+        "assistant.manage",
     ],
     "HR Executive": [
         "dashboard.view",
@@ -81,6 +86,7 @@ DEFAULT_ROLES: dict[str, list[str]] = {
         "offer_letter.generate",
         "approvals.view",
         "approvals.action",
+        "assistant.chat",
     ],
     "Reporting Manager": [
         "dashboard.view",
@@ -92,6 +98,7 @@ DEFAULT_ROLES: dict[str, list[str]] = {
         "performance.manage",
         "org.view",
         "timesheet.approve",
+        "assistant.chat",
     ],
     "Finance Admin": [
         "dashboard.view",
@@ -102,6 +109,7 @@ DEFAULT_ROLES: dict[str, list[str]] = {
         "approvals.action",
         "reports.view",
         "employee.view.all",
+        "assistant.chat",
     ],
     "Employee": [
         "dashboard.view",
@@ -115,6 +123,7 @@ DEFAULT_ROLES: dict[str, list[str]] = {
         "performance.view.own",
         "timesheet.submit",
         "org.view",
+        "assistant.chat",
     ],
 }
 
@@ -135,4 +144,5 @@ DEFAULT_ENABLED_MODULES = {
     "workflows": True,
     "reports": True,
     "settings": True,
+    "assistant": True,
 }

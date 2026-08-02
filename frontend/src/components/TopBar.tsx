@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, LogOut, Palette, User } from "lucide-react";
+import { Bell, LogOut, MessageSquare, Palette, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "@/api/client";
@@ -83,6 +83,16 @@ export function TopBar() {
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-4 sm:px-6 backdrop-blur">
       <OrgBrand size="sm" className="min-w-0 flex-1" nameClassName="text-sm font-semibold text-slate-800" />
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        {!user?.is_platform_admin && (
+          <Link
+            to="/app/assistant"
+            title="Company Assistant"
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-700"
+            aria-label="Company Assistant"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </Link>
+        )}
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button

@@ -26,6 +26,7 @@ const MODULE_PREFIXES: Record<string, string[]> = {
   timesheets: ["timesheet"],
   hr_lifecycle: ["onboarding", "offboarding", "offer_letter"],
   offer_letters: ["offer_letter"],
+  assistant: ["assistant"],
 };
 
 export function usePermission(permission: string): boolean {

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal, PageHeader } from "@/components/ui/Modal";
 import { useAuthStore, type UserInfo } from "@/store/auth";
 import { useAnyPermission } from "@/hooks/usePermission";
+import { AiAssistantSettings } from "@/features/settings/AiAssistantSettings";
 
 interface Holiday { id: string; name: string; date: string; is_optional: boolean }
 interface LeaveType { id: string; name: string; code: string; annual_quota: number }
@@ -33,9 +34,10 @@ export function SettingsPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const queryClient = useQueryClient();
   const canManageBranding = useAnyPermission(["settings.manage", "org.manage"]);
-  const [tab, setTab] = useState<"branding" | "holidays" | "leave" | "roles" | "workflows" | "announcements">(
-    "branding",
-  );
+  const canManageAi = useAnyPermission(["assistant.manage", "settings.manage", "*"]);
+  const [tab, setTab] = useState<
+    "branding" | "holidays" | "leave" | "roles" | "workflows" | "announcements" | "assistant"
+  >("branding");
 
   const [orgName, setOrgName] = useState("");
   const [brandMsg, setBrandMsg] = useState("");
@@ -306,6 +308,7 @@ export function SettingsPage() {
     { id: "roles" as const, label: "Roles & Permissions" },
     { id: "workflows" as const, label: "Workflows" },
     { id: "announcements" as const, label: "Announcements" },
+    ...(canManageAi ? [{ id: "assistant" as const, label: "AI Assistant" }] : []),
   ];
 
   const permsByModule = matrix?.permissions.reduce<Record<string, Permission[]>>((acc, p) => {
@@ -614,6 +617,8 @@ export function SettingsPage() {
           </div>
         </Card>
       )}
+
+      {tab === "assistant" && canManageAi && <AiAssistantSettings />}
 
       {/* Edit modals */}
       <Modal open={!!editHoliday} onClose={() => setEditHoliday(null)} title="Edit Holiday">
