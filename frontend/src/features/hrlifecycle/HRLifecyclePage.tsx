@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, LogOut, UserPlus } from "lucide-react";
+import { FileText, LogOut, UserPlus, Users } from "lucide-react";
 import { apiRequest } from "@/api/client";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/Modal";
@@ -8,6 +8,15 @@ import { useAnyPermission, useModuleVisible } from "@/hooks/usePermission";
 import { useAuthStore } from "@/store/auth";
 
 const MODULES = [
+  {
+    title: "Recruitment",
+    description: "Candidates, resume upload, offers, and hire-to-employee flow",
+    path: "/app/recruitment",
+    icon: Users,
+    module: "recruitment",
+    countKey: "candidates" as const,
+    cta: "Manage candidates →",
+  },
   {
     title: "Onboarding",
     description: "Start checklists for new hires — tasks are created when you assign an employee",
@@ -83,6 +92,14 @@ export function HRLifecyclePage() {
   const canOffboarding = useAnyPermission(["offboarding.manage"]);
   const canOffers = useAnyPermission(["offer_letter.generate"]);
 
+  const canRecruitment = useAnyPermission(["recruitment.view", "recruitment.manage"]);
+
+  const { data: candidates } = useQuery({
+    queryKey: ["candidates-count"],
+    queryFn: () => apiRequest<{ items: { id: string }[]; total: number }>("/api/v1/candidates?page_size=1", { token: accessToken }),
+    enabled: canRecruitment,
+  });
+
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding-tasks"],
     queryFn: () => apiRequest<{ id: string }[]>("/api/v1/onboarding/tasks", { token: accessToken }),
@@ -102,34 +119,36 @@ export function HRLifecyclePage() {
   });
 
   const counts = {
+    candidates: candidates?.total ?? 0,
     onboarding: onboarding?.length ?? 0,
     offboarding: offboarding?.length ?? 0,
     offers: offers?.length ?? 0,
   };
 
+  const showRecruitment = useModuleVisible("recruitment");
   const showOnboarding = useModuleVisible("onboarding");
   const showOffboarding = useModuleVisible("offboarding");
   const showOffers = useModuleVisible("offer_letters");
-  const anyVisible = showOnboarding || showOffboarding || showOffers;
+  const anyVisible = showRecruitment || showOnboarding || showOffboarding || showOffers;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="HR Lifecycle"
-        description="Hire-to-retire: onboarding new employees, issuing offer letters, and managing exits"
+        description="Hire-to-retire: recruitment, offers, onboarding, and offboarding"
       />
 
       <Card className="bg-brand-50 border-brand-100">
         <p className="text-sm text-brand-900">
-          <strong>Quick guide:</strong> Onboarding starts empty — pick an employee on the Onboarding page and click
-          &quot;Start Standard Checklist&quot;. For offers, create a draft, generate the PDF, then release it to the candidate.
+          <strong>Quick guide:</strong> Add candidates in Recruitment, create & release an offer, accept offer to create
+          employee with My Pay auto-configured, then onboarding tasks are assigned automatically.
         </p>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <LifecycleModuleCard mod={MODULES[0]} count={counts.onboarding} />
-        <LifecycleModuleCard mod={MODULES[1]} count={counts.offers} />
-        <LifecycleModuleCard mod={MODULES[2]} count={counts.offboarding} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {MODULES.map((mod) => (
+          <LifecycleModuleCard key={mod.path} mod={mod} count={counts[mod.countKey]} />
+        ))}
         {!anyVisible && (
           <Card className="sm:col-span-2 lg:col-span-3">
             <p className="text-sm text-slate-500">You do not have access to HR lifecycle modules.</p>

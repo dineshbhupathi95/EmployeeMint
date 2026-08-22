@@ -20,12 +20,20 @@ def extract_policy_text(filename: str, data: bytes) -> str:
 
     if name.endswith(".pdf"):
         from pypdf import PdfReader
+        from pypdf.errors import EmptyFileError, PdfReadError
 
-        reader = PdfReader(BytesIO(data))
-        pages = []
-        for page in reader.pages:
-            pages.append(page.extract_text() or "")
-        text = "\n".join(pages).strip()
+        if not data:
+            raise ValueError("Uploaded PDF is empty")
+        try:
+            reader = PdfReader(BytesIO(data))
+            pages = []
+            for page in reader.pages:
+                pages.append(page.extract_text() or "")
+            text = "\n".join(pages).strip()
+        except (EmptyFileError, PdfReadError) as exc:
+            raise ValueError(
+                "Could not read this PDF. It may be corrupted or password-protected."
+            ) from exc
         if not text:
             raise ValueError("Could not extract text from this PDF (it may be scanned/image-only).")
         return text

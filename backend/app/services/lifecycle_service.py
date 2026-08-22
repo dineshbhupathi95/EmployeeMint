@@ -208,8 +208,8 @@ class LifecycleService:
         letter = await self._get_offer(db, tenant_id, offer_id)
         if not letter:
             raise ValueError("Offer letter not found")
-        if letter.status == "released":
-            raise ValueError("Cannot regenerate a released offer letter")
+        if letter.status in ("released", "accepted"):
+            raise ValueError("Cannot regenerate a released or accepted offer letter")
         if not letter.template_id:
             raise ValueError("Offer has no template. Recreate the offer with a selected template.")
 
@@ -242,6 +242,13 @@ class LifecycleService:
         letter.status = "released"
         await db.flush()
 
+        if letter.candidate_id:
+            from app.models import Candidate
+
+            candidate = await db.get(Candidate, letter.candidate_id)
+            if candidate and candidate.status not in ("hired", "offer_accepted"):
+                candidate.status = "offer_sent"
+
         from app.services.finance_service import FinanceService
 
         await FinanceService().sync_compensation_from_offer(db, tenant_id, letter)
@@ -268,6 +275,9 @@ class LifecycleService:
                 "file_url": o.file_url,
                 "template_id": str(o.template_id) if o.template_id else None,
                 "template_name": t.name if t else None,
+                "candidate_id": str(o.candidate_id) if o.candidate_id else None,
+                "employee_id": str(o.employee_id) if o.employee_id else None,
+                "accepted_at": o.accepted_at.isoformat() if o.accepted_at else None,
             }
             for o, t in result.all()
         ]
@@ -284,6 +294,7 @@ class LifecycleService:
         designation: str | None,
         ctc: str | None,
         joining_date: date | None,
+        candidate_id: uuid.UUID | None = None,
     ) -> OfferLetter:
         template = await self._get_template(db, tenant_id, template_id)
         if not template:
@@ -295,6 +306,7 @@ class LifecycleService:
             tenant_id=tenant_id,
             created_by=user_id,
             template_id=template.id,
+            candidate_id=candidate_id,
             candidate_name=candidate_name,
             candidate_email=candidate_email,
             designation=designation,

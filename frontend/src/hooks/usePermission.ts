@@ -24,8 +24,9 @@ const MODULE_PREFIXES: Record<string, string[]> = {
   onboarding: ["onboarding"],
   offboarding: ["offboarding"],
   timesheets: ["timesheet"],
-  hr_lifecycle: ["onboarding", "offboarding", "offer_letter"],
+  hr_lifecycle: ["onboarding", "offboarding", "offer_letter", "recruitment"],
   offer_letters: ["offer_letter"],
+  recruitment: ["recruitment"],
   assistant: ["assistant"],
 };
 

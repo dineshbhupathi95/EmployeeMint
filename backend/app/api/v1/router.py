@@ -12,7 +12,9 @@ from app.api.v1 import (
     finance,
     leave,
     lifecycle,
+    payroll,
     platform,
+    recruitment,
     reports,
     settings,
     setup,
@@ -27,11 +29,13 @@ api_router.include_router(employees.router)
 api_router.include_router(leave.router)
 api_router.include_router(attendance.router)
 api_router.include_router(finance.router)
+api_router.include_router(payroll.router)
 api_router.include_router(approvals.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(reports.router)
 api_router.include_router(settings.router)
 api_router.include_router(lifecycle.router)
+api_router.include_router(recruitment.router)
 api_router.include_router(timesheets.router)
 api_router.include_router(documents.router)
 api_router.include_router(employee_details.router)

@@ -3,7 +3,15 @@ from app.models.attendance import AttendanceRecord
 from app.models.timesheet import TimesheetEntry
 from app.models.wfh import WfhRequest
 from app.models.audit import AuditLog, Notification
-from app.models.finance import EmployeeCompensation, Payslip, ReimbursementCategory, ReimbursementClaim
+from app.models.finance import (
+    EmployeeBankAccount,
+    EmployeeCompensation,
+    PayrollRun,
+    PayrollRunLine,
+    Payslip,
+    ReimbursementCategory,
+    ReimbursementClaim,
+)
 from app.models.leave import LeaveBalance, LeaveRequest, LeaveType
 from app.models.misc import (
     Announcement,
@@ -15,6 +23,7 @@ from app.models.misc import (
     OnboardingChecklist,
     OnboardingTask,
 )
+from app.models.recruitment import Candidate
 from app.models.organization import Department, Designation, Employee, EmployeeEducation, EmployeeWorkExperience, Location, User
 from app.models.platform import PlatformAdmin, Tenant, TenantSetting
 from app.models.rbac import Permission, Role, RolePermission, UserRole
@@ -51,6 +60,9 @@ __all__ = [
     "ReimbursementCategory",
     "ReimbursementClaim",
     "EmployeeCompensation",
+    "EmployeeBankAccount",
+    "PayrollRun",
+    "PayrollRunLine",
     "Holiday",
     "Announcement",
     "OnboardingChecklist",
@@ -58,6 +70,7 @@ __all__ = [
     "ExitRequest",
     "OfferLetterTemplate",
     "OfferLetter",
+    "Candidate",
     "EmployeeDocument",
     "AiConfig",
     "AiDocument",

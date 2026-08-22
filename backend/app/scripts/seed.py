@@ -69,7 +69,9 @@ async def seed_existing_tenant_defaults(session) -> None:
     from sqlalchemy import select
     from app.core.tenant_defaults import ensure_missing_workflows
     from app.models import ApprovalWorkflow, LeaveType, Tenant
+    from app.services.rbac_service import RBACService
 
+    rbac = RBACService()
     result = await session.execute(select(Tenant))
     for tenant in result.scalars().all():
         lt = await session.execute(
@@ -82,6 +84,10 @@ async def seed_existing_tenant_defaults(session) -> None:
             added = await ensure_missing_workflows(session, tenant.id, None)
             if added:
                 print(f"Added missing workflows for {tenant.slug}: {', '.join(added)}")
+
+        perm_added = await rbac.sync_system_role_permissions(session, tenant.id)
+        if perm_added:
+            print(f"Synced {perm_added} role permissions for {tenant.slug}")
 
 async def main() -> None:
     async with async_session_factory() as session:

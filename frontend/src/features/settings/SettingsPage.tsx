@@ -29,6 +29,13 @@ interface Branding {
   has_logo: boolean;
 }
 
+interface PayrollSettings {
+  working_days_per_month: number;
+  hr_roles: string[];
+  finance_roles: string[];
+  admin_roles: string[];
+}
+
 export function SettingsPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const setUser = useAuthStore((s) => s.setUser);
@@ -36,7 +43,7 @@ export function SettingsPage() {
   const canManageBranding = useAnyPermission(["settings.manage", "org.manage"]);
   const canManageAi = useAnyPermission(["assistant.manage", "settings.manage", "*"]);
   const [tab, setTab] = useState<
-    "branding" | "holidays" | "leave" | "roles" | "workflows" | "announcements" | "assistant"
+    "branding" | "holidays" | "leave" | "roles" | "workflows" | "announcements" | "assistant" | "payroll"
   >("branding");
 
   const [orgName, setOrgName] = useState("");
@@ -58,6 +65,13 @@ export function SettingsPage() {
   const [roleModal, setRoleModal] = useState(false);
   const [editRole, setEditRole] = useState<Role | null>(null);
   const [roleForm, setRoleForm] = useState({ name: "", description: "", permission_codes: [] as string[] });
+  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>({
+    working_days_per_month: 30,
+    hr_roles: ["HR Admin", "HR Executive"],
+    finance_roles: ["Finance Admin"],
+    admin_roles: ["Org Admin"],
+  });
+  const [payrollMsg, setPayrollMsg] = useState("");
 
   const refreshMe = async () => {
     const me = await apiRequest<UserInfo>("/api/v1/auth/me", { token: accessToken });
@@ -114,8 +128,18 @@ export function SettingsPage() {
   const { data: matrix } = useQuery({
     queryKey: ["roles-matrix"],
     queryFn: () => apiRequest<{ permissions: Permission[]; roles: Role[] }>("/api/v1/roles/matrix", { token: accessToken }),
-    enabled: tab === "roles",
+    enabled: tab === "roles" || tab === "payroll",
   });
+
+  const { data: payrollSettingsData } = useQuery({
+    queryKey: ["payroll-settings"],
+    queryFn: () => apiRequest<PayrollSettings>("/api/v1/payroll/settings", { token: accessToken }),
+    enabled: tab === "payroll",
+  });
+
+  useEffect(() => {
+    if (payrollSettingsData) setPayrollSettings(payrollSettingsData);
+  }, [payrollSettingsData]);
 
   const { data: workflows } = useQuery({
     queryKey: ["workflows"],
@@ -235,6 +259,32 @@ export function SettingsPage() {
     onSuccess: () => { invalidate(["roles-matrix", "roles"]); setRoleModal(false); setEditRole(null); },
   });
 
+  const savePayrollSettings = useMutation({
+    mutationFn: () =>
+      apiRequest("/api/v1/payroll/settings", {
+        method: "PUT",
+        token: accessToken,
+        body: JSON.stringify(payrollSettings),
+      }),
+    onSuccess: () => {
+      setPayrollMsg("Payroll settings saved");
+      invalidate(["payroll-settings"]);
+    },
+    onError: (err: Error) => setPayrollMsg(err.message),
+  });
+
+  const togglePayrollRole = (field: "hr_roles" | "finance_roles" | "admin_roles", roleName: string) => {
+    setPayrollSettings((prev) => {
+      const current = prev[field];
+      return {
+        ...prev,
+        [field]: current.includes(roleName)
+          ? current.filter((r) => r !== roleName)
+          : [...current, roleName],
+      };
+    });
+  };
+
   const addAnnouncement = useMutation({
     mutationFn: () =>
       apiRequest("/api/v1/settings/announcements", {
@@ -306,6 +356,7 @@ export function SettingsPage() {
     { id: "holidays" as const, label: "Holidays" },
     { id: "leave" as const, label: "Leave Types" },
     { id: "roles" as const, label: "Roles & Permissions" },
+    { id: "payroll" as const, label: "Payroll" },
     { id: "workflows" as const, label: "Workflows" },
     { id: "announcements" as const, label: "Announcements" },
     ...(canManageAi ? [{ id: "assistant" as const, label: "AI Assistant" }] : []),
@@ -529,6 +580,61 @@ export function SettingsPage() {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {tab === "payroll" && (
+        <Card>
+          <CardHeader
+            title="Payroll Settings"
+            description="Configure LOP calculation and which roles can draft, review, and approve payroll runs"
+          />
+          {payrollMsg && <p className="mb-4 text-sm text-green-700">{payrollMsg}</p>}
+          <form
+            className="space-y-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              savePayrollSettings.mutate();
+            }}
+          >
+            <Input
+              label="Working days per month (for LOP calculation)"
+              type="number"
+              min={20}
+              max={31}
+              value={payrollSettings.working_days_per_month}
+              onChange={(e) =>
+                setPayrollSettings((s) => ({ ...s, working_days_per_month: parseInt(e.target.value) || 30 }))
+              }
+            />
+            {(["hr_roles", "finance_roles", "admin_roles"] as const).map((field) => (
+              <div key={field}>
+                <p className="mb-2 text-sm font-medium text-slate-700 capitalize">
+                  {field.replace(/_/g, " ")}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {matrix?.roles.map((role) => (
+                    <label key={role.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={payrollSettings[field].includes(role.name)}
+                        onChange={() => togglePayrollRole(field, role.name)}
+                        className="rounded"
+                      />
+                      {role.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-slate-500">
+              Assign payroll permissions (payroll.draft, payroll.submit, payroll.approve, etc.) in Roles & Permissions.
+              These role groups are used for payroll workflow routing and defaults.
+            </p>
+            <Button type="submit" disabled={savePayrollSettings.isPending}>
+              {savePayrollSettings.isPending ? "Saving..." : "Save Payroll Settings"}
+            </Button>
+          </form>
         </Card>
       )}
 

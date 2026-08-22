@@ -6,6 +6,7 @@ import { ProtectedRoute } from "@/app/ProtectedRoute";
 import { LeavePage } from "@/features/leave/LeavePage";
 import { AttendancePage } from "@/features/attendance/AttendancePage";
 import { FinancePage } from "@/features/finance/FinancePage";
+import { PayrollRunsPage } from "@/features/payroll/PayrollRunsPage";
 import { ApprovalsPage } from "@/features/approvals/ApprovalsPage";
 import { OrganizationPage } from "@/features/organization/OrganizationPage";
 import { MyTeamPage } from "@/features/myteam/MyTeamPage";
@@ -25,6 +26,8 @@ import { TenantRouteGuard } from "@/app/TenantRouteGuard";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { SetupWizardPage } from "@/features/setup/SetupWizardPage";
 import { TimesheetsPage } from "@/features/timesheets/TimesheetsPage";
+import { CandidatesPage } from "@/features/recruitment/CandidatesPage";
+import { CandidateDetailPage } from "@/features/recruitment/CandidateDetailPage";
 import { HRLifecyclePage } from "@/features/hrlifecycle/HRLifecyclePage";
 import { AssistantPage } from "@/features/assistant/AssistantPage";
 
@@ -60,6 +63,7 @@ export function App() {
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="leave" element={<LeavePage />} />
               <Route path="finance" element={<FinancePage />} />
+              <Route path="payroll" element={<PayrollRunsPage />} />
               <Route path="approvals" element={<ApprovalsPage />} />
               <Route path="organization" element={<OrganizationPage />} />
               <Route path="my-team" element={<MyTeamPage />} />
@@ -68,6 +72,8 @@ export function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="timesheets" element={<TimesheetsPage />} />
               <Route path="hr-lifecycle" element={<HRLifecyclePage />} />
+              <Route path="recruitment" element={<CandidatesPage />} />
+              <Route path="recruitment/:candidateId" element={<CandidateDetailPage />} />
               <Route path="onboarding" element={<OnboardingPage />} />
               <Route path="offboarding" element={<OffboardingPage />} />
               <Route path="offer-letters" element={<OfferLettersPage />} />

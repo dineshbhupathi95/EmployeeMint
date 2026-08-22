@@ -215,7 +215,11 @@ class FinanceService:
     async def sync_compensation_from_offer(
         self, db: AsyncSession, tenant_id: uuid.UUID, offer: OfferLetter, user_id: uuid.UUID | None = None
     ) -> EmployeeCompensation | None:
-        employee = await self._find_employee_by_email(db, tenant_id, offer.candidate_email)
+        employee = None
+        if offer.employee_id:
+            employee = await db.get(Employee, offer.employee_id)
+        if not employee:
+            employee = await self._find_employee_by_email(db, tenant_id, offer.candidate_email)
         if not employee:
             return None
         return await self.upsert_compensation(
@@ -247,7 +251,7 @@ class FinanceService:
                 .where(
                     OfferLetter.tenant_id == tenant_id,
                     OfferLetter.is_deleted.is_(False),
-                    OfferLetter.status == "released",
+                    OfferLetter.status.in_(["released", "accepted"]),
                     func.lower(OfferLetter.candidate_email) == email.lower().strip(),
                 )
                 .order_by(OfferLetter.updated_at.desc())

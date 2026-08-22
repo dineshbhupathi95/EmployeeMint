@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user, require_any_permission, require_permission
@@ -20,6 +21,11 @@ from app.services.finance_service import FinanceService
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 finance_service = FinanceService()
+
+
+def _payslip_response(slip) -> PayslipResponse:
+    base = PayslipResponse.model_validate(slip)
+    return base.model_copy(update={"has_pdf": bool(slip.file_url)})
 
 
 def _compensation_response(comp) -> CompensationResponse:
@@ -130,7 +136,22 @@ async def my_payslips(
     if not current_user.employee_id:
         return []
     slips = await finance_service.list_payslips(db, current_user.tenant_id, current_user.employee_id)
-    return [PayslipResponse.model_validate(s) for s in slips]
+    return [_payslip_response(s) for s in slips]
+
+
+@router.get("/payslips/{payslip_id}/download")
+async def download_payslip(
+    payslip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("payroll.view.own")),
+):
+    if not current_user.employee_id:
+        raise HTTPException(status_code=400, detail={"error": {"code": "NO_EMPLOYEE", "message": "No employee profile"}})
+    slips = await finance_service.list_payslips(db, current_user.tenant_id, current_user.employee_id)
+    slip = next((s for s in slips if s.id == payslip_id), None)
+    if not slip or not slip.file_url:
+        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "Payslip not found"}})
+    return FileResponse(slip.file_url, filename=f"payslip_{slip.year}_{slip.month:02d}.pdf", media_type="application/pdf")
 
 
 @router.get("/reimbursements/categories", response_model=list[ReimbursementCategoryResponse])

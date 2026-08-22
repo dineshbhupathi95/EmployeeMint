@@ -13,6 +13,8 @@ class PayslipResponse(BaseModel):
     net_pay: Decimal
     earnings: dict
     deductions: dict
+    file_url: str | None = None
+    has_pdf: bool = False
     model_config = {"from_attributes": True}
 
 

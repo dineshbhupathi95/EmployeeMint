@@ -90,6 +90,12 @@ class OfferLetter(Base, TenantScopedMixin):
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("offer_letter_templates.id", ondelete="SET NULL"), nullable=True
     )
+    candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    employee_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     candidate_name: Mapped[str] = mapped_column(String(255), nullable=False)
     candidate_email: Mapped[str] = mapped_column(String(255), nullable=False)
     designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -97,6 +103,7 @@ class OfferLetter(Base, TenantScopedMixin):
     joining_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="draft", nullable=False, index=True)
     file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class EmployeeDocument(Base, TenantScopedMixin):

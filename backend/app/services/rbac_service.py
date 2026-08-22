@@ -137,3 +137,44 @@ class RBACService:
             )
 
         return RolePermissionMatrix(permissions=permissions, roles=roles)
+
+    def _expand_role_permission_codes(self, perm_codes: list[str], permissions: dict[str, Permission]) -> set[str]:
+        expanded: set[str] = set()
+        for code in perm_codes:
+            if code == "*":
+                expanded.update(permissions.keys())
+            elif code.endswith(".*"):
+                prefix = code[:-2]
+                for perm_code in permissions:
+                    if perm_code == prefix or perm_code.startswith(f"{prefix}."):
+                        expanded.add(perm_code)
+            elif code in permissions:
+                expanded.add(code)
+        return expanded
+
+    async def sync_system_role_permissions(self, db: AsyncSession, tenant_id: uuid.UUID) -> int:
+        """Backfill missing permissions on default system roles (e.g. after new permissions are added)."""
+        result = await db.execute(select(Permission))
+        permissions = {p.code: p for p in result.scalars().all()}
+
+        roles_result = await db.execute(
+            select(Role)
+            .options(selectinload(Role.role_permissions))
+            .where(Role.tenant_id == tenant_id, Role.is_system.is_(True), Role.is_deleted.is_(False))
+        )
+        added = 0
+        for role in roles_result.scalars().all():
+            expected = self._expand_role_permission_codes(
+                DEFAULT_ROLES.get(role.name, []), permissions
+            )
+            if not expected:
+                continue
+            existing_perm_ids = {rp.permission_id for rp in role.role_permissions}
+            for code in expected:
+                perm = permissions.get(code)
+                if perm and perm.id not in existing_perm_ids:
+                    db.add(RolePermission(role_id=role.id, permission_id=perm.id))
+                    added += 1
+        if added:
+            await db.flush()
+        return added

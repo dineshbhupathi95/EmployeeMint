@@ -4,6 +4,14 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - idle_in_transaction_session_timeout=60000
+      - -c
+      - statement_timeout=300000
+      - -c
+      - lock_timeout=30000
     environment:
       POSTGRES_USER: hrms
       POSTGRES_PASSWORD: HrmsPg@2026!8KxP
@@ -48,39 +56,39 @@ services:
     volumes:
       - minio_data:/data
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://hrms:HrmsPg@2026!8KxP@postgres:5432/hrms
-      DATABASE_URL_SYNC: postgresql+psycopg://hrms:HrmsPg@2026!8KxP@postgres:5432/hrms
-
-      REDIS_URL: redis://:HrmsRedis@2026!9Lm@redis:6379/0
-      CELERY_BROKER_URL: redis://:HrmsRedis@2026!9Lm@redis:6379/1
-      CELERY_RESULT_BACKEND: redis://:HrmsRedis@2026!9Lm@redis:6379/2
-
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: hrmsadmin
-      S3_SECRET_KEY: HrmsMinio@2026!4Qz
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
-
-    volumes:
-      - ./backend:/app
-
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+#  backend:
+#    build:
+#      context: ./backend
+#      dockerfile: Dockerfile
+#    restart: unless-stopped
+#    ports:
+#      - "8000:8000"
+#    env_file:
+#      - .env
+#    environment:
+#      DATABASE_URL: postgresql+asyncpg://hrms:HrmsPg@2026!8KxP@postgres:5432/hrms
+#      DATABASE_URL_SYNC: postgresql+psycopg://hrms:HrmsPg@2026!8KxP@postgres:5432/hrms
+#
+#      REDIS_URL: redis://:HrmsRedis@2026!9Lm@redis:6379/0
+#      CELERY_BROKER_URL: redis://:HrmsRedis@2026!9Lm@redis:6379/1
+#      CELERY_RESULT_BACKEND: redis://:HrmsRedis@2026!9Lm@redis:6379/2
+#
+#      S3_ENDPOINT: http://minio:9000
+#      S3_ACCESS_KEY: hrmsadmin
+#      S3_SECRET_KEY: HrmsMinio@2026!4Qz
+#
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      minio:
+#        condition: service_started
+#
+#    volumes:
+#      - ./backend:/app
+#
+#    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   celery-worker:
     build:

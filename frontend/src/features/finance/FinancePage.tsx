@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IndianRupee, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState } from "react";
-import { apiRequest } from "@/api/client";
+import { apiDownload, apiRequest } from "@/api/client";
 import { Can } from "@/components/Can";
+import { useAnyPermission } from "@/hooks/usePermission";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -64,6 +66,16 @@ interface Payslip {
   net_pay: number;
   earnings: Record<string, number>;
   deductions: Record<string, number>;
+  has_pdf?: boolean;
+}
+
+interface BankAccount {
+  id: string;
+  account_holder_name: string;
+  account_number: string;
+  ifsc_code: string;
+  bank_name: string;
+  branch_name: string | null;
 }
 
 interface Category { id: string; name: string }
@@ -158,6 +170,18 @@ export function FinancePage() {
   const [adminMessage, setAdminMessage] = useState("");
   const [calcCtc, setCalcCtc] = useState("15 LPA");
   const [calcRegime, setCalcRegime] = useState<"new" | "old">("new");
+  const [bankForm, setBankForm] = useState({
+    account_holder_name: "",
+    account_number: "",
+    ifsc_code: "",
+    bank_name: "",
+    branch_name: "",
+  });
+  const [bankMessage, setBankMessage] = useState("");
+  const canAccessPayroll = useAnyPermission([
+    "payroll.draft", "payroll.submit", "payroll.approve", "payroll.view.all",
+    "payroll.process", "payroll.export", "payroll.finalize",
+  ]);
 
   const { data: myPay } = useQuery({
     queryKey: ["my-pay"],
@@ -202,7 +226,13 @@ export function FinancePage() {
   const { data: payslips } = useQuery({
     queryKey: ["payslips"],
     queryFn: () => apiRequest<Payslip[]>("/api/v1/finance/payslips", { token: accessToken }),
-    enabled: tab === "payslips",
+    enabled: tab === "payslips" || tab === "my-pay",
+  });
+
+  const { data: bankAccount } = useQuery({
+    queryKey: ["bank-account"],
+    queryFn: () => apiRequest<BankAccount | null>("/api/v1/payroll/bank-account", { token: accessToken }),
+    enabled: tab === "my-pay",
   });
 
   const { data: categories } = useQuery({
@@ -238,6 +268,26 @@ export function FinancePage() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const saveBankMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("/api/v1/payroll/bank-account", {
+        method: "PUT",
+        token: accessToken,
+        body: JSON.stringify({
+          account_holder_name: bankForm.account_holder_name,
+          account_number: bankForm.account_number,
+          ifsc_code: bankForm.ifsc_code,
+          bank_name: bankForm.bank_name,
+          branch_name: bankForm.branch_name || null,
+        }),
+      }),
+    onSuccess: () => {
+      setBankMessage("Bank details saved");
+      queryClient.invalidateQueries({ queryKey: ["bank-account"] });
+    },
+    onError: (err: Error) => setBankMessage(err.message),
+  });
+
   const saveCompMutation = useMutation({
     mutationFn: () =>
       apiRequest(`/api/v1/finance/compensation/${adminEmployeeId}`, {
@@ -268,6 +318,24 @@ export function FinancePage() {
         title="My Pay"
         description="Compensation, automatic tax (TDS), payslips, and expense claims"
       />
+
+      {canAccessPayroll && (
+        <Card className="border-brand-200 bg-gradient-to-r from-brand-50 to-white">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-slate-900">Payroll Runs</p>
+              <p className="text-sm text-slate-600">
+                Create monthly draft, submit to Finance, export bank file, and generate payslips.
+              </p>
+            </div>
+            <Link to="/app/payroll">
+              <Button>
+                Open Payroll Runs
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
         {([
@@ -466,6 +534,37 @@ export function FinancePage() {
               View detailed monthly payslips in the <button type="button" className="text-brand-600 hover:underline" onClick={() => setTab("payslips")}>Payslips tab</button>.
             </p>
           </Card>
+
+          <Card>
+            <CardHeader title="Bank Details" description="Required for salary disbursement via payroll" />
+            {bankAccount && !bankForm.account_holder_name && (
+              <p className="mb-3 text-sm text-slate-600">
+                Saved: {bankAccount.bank_name} · {bankAccount.account_number} · {bankAccount.ifsc_code}
+              </p>
+            )}
+            {bankMessage && <p className="mb-3 text-sm text-green-700">{bankMessage}</p>}
+            <form
+              className="grid gap-3 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveBankMutation.mutate();
+              }}
+            >
+              <Input label="Account Holder Name" required value={bankForm.account_holder_name || bankAccount?.account_holder_name || ""}
+                onChange={(e) => setBankForm((f) => ({ ...f, account_holder_name: e.target.value }))} />
+              <Input label="Account Number" required value={bankForm.account_number || bankAccount?.account_number || ""}
+                onChange={(e) => setBankForm((f) => ({ ...f, account_number: e.target.value }))} />
+              <Input label="IFSC Code" required value={bankForm.ifsc_code || bankAccount?.ifsc_code || ""}
+                onChange={(e) => setBankForm((f) => ({ ...f, ifsc_code: e.target.value }))} />
+              <Input label="Bank Name" required value={bankForm.bank_name || bankAccount?.bank_name || ""}
+                onChange={(e) => setBankForm((f) => ({ ...f, bank_name: e.target.value }))} />
+              <Input label="Branch" value={bankForm.branch_name || bankAccount?.branch_name || ""}
+                onChange={(e) => setBankForm((f) => ({ ...f, branch_name: e.target.value }))} />
+              <div className="flex items-end">
+                <Button type="submit" disabled={saveBankMutation.isPending}>Save Bank Details</Button>
+              </div>
+            </form>
+          </Card>
         </>
       )}
 
@@ -474,14 +573,35 @@ export function FinancePage() {
           <CardHeader title="Payslip History" />
           {payslips?.length ? payslips.map((p) => (
             <div key={p.id} className="mb-4 rounded-lg border border-slate-200 p-4">
-              <div className="flex justify-between">
-                <p className="font-medium">{monthName(p.month)} {p.year}</p>
-                <p className="font-bold text-brand-700">{formatCurrency(p.net_pay)}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{monthName(p.month)} {p.year}</p>
+                  <p className="mt-1 text-sm text-slate-500">Gross: {formatCurrency(p.gross_pay)}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="font-bold text-brand-700">{formatCurrency(p.net_pay)}</p>
+                  {p.has_pdf && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={async () => {
+                        const blob = await apiDownload(`/api/v1/finance/payslips/${p.id}/download`, accessToken);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `payslip_${p.year}_${String(p.month).padStart(2, "0")}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Download PDF
+                    </Button>
+                  )}
+                </div>
               </div>
-              <p className="mt-1 text-sm text-slate-500">Gross: {formatCurrency(p.gross_pay)}</p>
             </div>
           )) : (
-            <p className="text-sm text-slate-500">No payslips processed yet. Your CTC and breakdown appear under My Pay.</p>
+            <p className="text-sm text-slate-500">No payslips processed yet. Payslips appear here after payroll is finalized.</p>
           )}
         </Card>
       )}

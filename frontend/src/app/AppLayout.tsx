@@ -22,7 +22,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { TopBar } from "@/components/TopBar";
 import { AnnouncementTicker } from "@/components/AnnouncementTicker";
 import { OrgBrand } from "@/components/OrgBrand";
-import { useModuleVisible } from "@/hooks/usePermission";
+import { useModuleVisible, useAnyPermission } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 
@@ -33,6 +33,7 @@ type NavItemConfig = {
   label: string;
   icon: typeof LayoutDashboard;
   module: string;
+  requiredPermissions?: string[];
 };
 
 type NavGroupConfig = {
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { path: "/app/leave", label: "Leave", icon: Calendar, module: "leave" },
   { path: "/app/timesheets", label: "Timesheets", icon: ClipboardList, module: "timesheets" },
   { path: "/app/finance", label: "My Pay", icon: Wallet, module: "finance" },
+  { path: "/app/payroll", label: "Payroll Runs", icon: FileText, module: "finance", requiredPermissions: ["payroll.draft", "payroll.submit", "payroll.approve", "payroll.view.all", "payroll.process", "payroll.export", "payroll.finalize", "settings.manage"] },
   { path: "/app/approvals", label: "Approvals", icon: CheckSquare, module: "approvals" },
   { path: "/app/organization", label: "Organization", icon: Building2, module: "organization" },
   { path: "/app/my-team", label: "My Team", icon: UserCheck, module: "myteam" },
@@ -62,6 +64,7 @@ const HR_LIFECYCLE_GROUP: NavGroupConfig = {
   children: [
     { path: "/app/hr-lifecycle", label: "Overview", icon: UserPlus, module: "hr_lifecycle" },
     { path: "/app/onboarding", label: "Onboarding", icon: UserPlus, module: "onboarding" },
+    { path: "/app/recruitment", label: "Recruitment", icon: Users, module: "recruitment" },
     { path: "/app/offboarding", label: "Offboarding", icon: LogOut, module: "offboarding" },
     { path: "/app/offer-letters", label: "Offer Letters", icon: FileText, module: "offer_letters" },
   ],
@@ -87,7 +90,9 @@ function NavItem({
   collapsed?: boolean;
 }) {
   const visible = useModuleVisible(item.module);
+  const hasRequiredPerms = useAnyPermission(item.requiredPermissions ?? []);
   if (!visible) return null;
+  if (item.requiredPermissions?.length && !hasRequiredPerms) return null;
   const Icon = item.icon;
   return (
     <Link
